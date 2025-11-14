@@ -1,0 +1,474 @@
+<!-- templates/kiosk.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Church Countdown Timer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Digital+7&family=DS-Digital&family=Audiowide&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000000;
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            padding: 0;
+        }
+        
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            text-align: center;
+            padding: 1vh 5vw 2vh 5vw;
+            background: #000000;
+        }
+        
+        .current-time-container {
+            flex: 0.5;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            max-height: 8vh;
+            padding-bottom: 1vh;
+        }
+        
+        .current-time {
+            font-size: 4vh;
+            font-weight: 400;
+            text-align: center;
+            letter-spacing: 2px;
+            color: #cccccc;
+            font-family: 'DS-Digital', 'Digital-7', 'Orbitron', monospace;
+        }
+        
+        .blinking-colon {
+            animation: blink 1s infinite;
+        }
+        
+        .activity-container {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            width: 100%;
+            max-height: 15vh;
+            padding-bottom: 2vh;
+        }
+        
+        .activity {
+            font-size: 5vh;
+            font-weight: 700;
+            text-align: center;
+            line-height: 1.1;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            color: #ffffff;
+            font-family: 'Orbitron', monospace;
+            max-width: 90vw;
+        }
+        
+        .timer-container {
+            flex: 3; /* 60% of screen height */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            min-height: 60vh;
+        }
+        
+        .timer {
+            font-size: 40vh; /* Much larger font size */
+            font-weight: 900;
+            font-family: 'DS-Digital', 'Digital-7', 'Orbitron', monospace;
+            color: #ffffff;
+            line-height: 1;
+            margin: 0;
+            letter-spacing: 6px; /* Increased letter spacing for large text */
+            background: #000000;
+            padding: 4vh;
+            border-radius: 15px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .status-container {
+            flex: 1;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            width: 100%;
+            max-height: 15vh;
+            padding-top: 2vh;
+        }
+        
+        .status {
+            font-size: 4vh;
+            font-weight: 700;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            padding: 2vh 4vw;
+            border-radius: 8px;
+            background: #111111;
+            border: 2px solid #333333;
+            color: #ffffff;
+            font-family: 'Orbitron', monospace;
+        }
+        
+        /* State-specific styles */
+        .running .timer {
+            color: #ffffff;
+            border: 4px solid #00ff00;
+        }
+        
+        .running .activity {
+            color: #ffffff;
+        }
+        
+        .running .status {
+            color: #00ff00;
+            border-color: #00ff00;
+            background: #111111;
+        }
+        
+        .paused .timer {
+            color: #ffffff;
+            border: 4px solid #ffff00;
+            animation: blink 1.5s infinite;
+        }
+        
+        .paused .activity {
+            color: #ffffff;
+            animation: blink 1.5s infinite;
+        }
+        
+        .paused .status {
+            color: #ffff00;
+            border-color: #ffff00;
+            background: #111111;
+            animation: blink 1.5s infinite;
+        }
+        
+        .stopped .timer {
+            color: #ffffff;
+            border: 4px solid #ff0000;
+        }
+        
+        .stopped .activity {
+            color: #ffffff;
+        }
+        
+        .stopped .status {
+            color: #ff0000;
+            border-color: #ff0000;
+            background: #111111;
+        }
+        
+        .warning .timer {
+            animation: pulse 0.8s infinite;
+            color: #ffffff;
+            border: 4px solid #ffff00;
+        }
+        
+        .critical .timer {
+            animation: urgentPulse 0.3s infinite;
+            color: #ffffff;
+            border: 4px solid #ff0000;
+        }
+        
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+        
+        @keyframes urgentPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        /* Ensure no scrollbars and full screen */
+        html, body {
+            overflow: hidden;
+            height: 100%;
+            width: 100%;
+            background: #000000;
+        }
+        
+        /* Responsive adjustments */
+        @media (min-height: 1000px) {
+            .current-time { font-size: 5vh; }
+            .activity { font-size: 6vh; }
+            .timer { font-size: 45vh; }
+            .status { font-size: 5vh; }
+        }
+        
+        @media (max-height: 800px) {
+            .current-time { font-size: 3vh; }
+            .activity { font-size: 4vh; }
+            .timer { font-size: 35vh; }
+            .status { font-size: 3vh; }
+        }
+        
+        @media (max-height: 600px) {
+            .current-time { font-size: 2.5vh; }
+            .activity { font-size: 3vh; }
+            .timer { font-size: 25vh; }
+            .status { font-size: 2.5vh; }
+        }
+        
+        @media (max-width: 768px) {
+            .current-time { font-size: 2.5vh; }
+            .timer { 
+                font-size: 25vh; 
+                letter-spacing: 3px;
+                padding: 3vh;
+            }
+            .activity {
+                font-size: 3vh;
+                letter-spacing: 2px;
+            }
+            .status {
+                font-size: 2.5vh;
+                letter-spacing: 2px;
+            }
+        }
+        
+        /* Fallback font stack for digital displays */
+        @font-face {
+            font-family: 'Digital-7';
+            src: local('Digital-7'), local('Digital7');
+        }
+		.waiting .timer {
+            color: #ffff00;
+            border: 4px solid #ffff00;
+            animation: pulse 2s infinite;
+        }
+
+        .waiting .activity {
+            color: #ffff00;
+        }
+
+        .waiting .status {
+            color: #ffff00;
+            border-color: #ffff00;
+            background: #111111;
+            animation: pulse 2s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container" id="mainContainer">
+        <div class="current-time-container">
+            <div class="current-time" id="currentTime">00<span class="blinking-colon">:</span>00</div>
+        </div>
+        
+        <div class="activity-container">
+            <div class="activity" id="activity">READY</div>
+        </div>
+        
+        <div class="timer-container">
+            <div class="timer" id="timer">00:00:00</div>
+        </div>
+        
+        <div class="status-container">
+            <div class="status" id="status">STOPPED</div>
+        </div>
+    </div>
+
+    <script>
+	// Add these lines after the existing variables
+		let waitingForStart = false;
+		let scheduledStartTime = '';
+		let waitingProgramName = '';
+        function updateCurrentTime() {
+            const now = new Date();
+            const hours = now.getHours().toString().padStart(2, '0');
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('currentTime').innerHTML = `${hours}<span class="blinking-colon">:</span>${minutes}`;
+        }
+
+       function updateDisplay() {
+    fetch('/api/timer_status')
+        .then(response => response.json())
+        .then(data => {
+            const container = document.getElementById('mainContainer');
+            const activityEl = document.getElementById('activity');
+            const timerEl = document.getElementById('timer');
+            const statusEl = document.getElementById('status');
+            
+            // Check if we're in waiting mode - UPDATE THIS SECTION
+            if (data.waiting_for_start) {
+                waitingForStart = data.waiting_for_start;
+                scheduledStartTime = data.scheduled_start_time || '';
+                waitingProgramName = data.waiting_program_name || '';
+                
+                activityEl.textContent = `${waitingProgramName} starts at`;
+                timerEl.textContent = scheduledStartTime;
+                statusEl.textContent = 'STARTING SOON';
+                container.className = 'container waiting';
+                timerEl.className = 'timer';
+                return;
+            } else {
+                // Clear waiting state when program starts
+                waitingForStart = false;
+            }
+            
+            // Update content for normal operation
+            activityEl.textContent = data.current_activity || 'READY';
+                    
+                    // Update content for normal operation
+                    activityEl.textContent = data.current_activity || 'READY';
+                    
+                    // Use the time format directly from backend (should be HH:MM:SS)
+                    let displayTime = data.time_remaining || '00:00:00';
+                    
+                    // Ensure we have proper HH:MM:SS format
+                    if (displayTime) {
+                        const parts = displayTime.split(':');
+                        if (parts.length === 2) {
+                            // If backend sends MM:SS, convert to 00:MM:SS
+                            displayTime = `00:${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+                        } else if (parts.length === 3) {
+                            // Ensure all parts have 2 digits
+                            displayTime = parts.map(part => part.padStart(2, '0')).join(':');
+                        }
+                    }
+                    
+                    timerEl.textContent = displayTime;
+                    
+                    // Remove all state classes
+                    container.className = 'container';
+                    timerEl.className = 'timer';
+                    
+                    // Apply current state
+                    if (data.is_running) {
+                        if (data.is_paused) {
+                            statusEl.textContent = 'PAUSED';
+                            container.classList.add('paused');
+                        } else {
+                            statusEl.textContent = 'LIVE';
+                            container.classList.add('running');
+                            
+                            // Check for low time warnings
+                            const timeText = data.time_remaining;
+                            let totalSeconds = 0;
+                            
+                            if (timeText && timeText.includes(':')) {
+                                const parts = timeText.split(':');
+                                if (parts.length === 3) {
+                                    // Format: HH:MM:SS
+                                    const hours = parseInt(parts[0]) || 0;
+                                    const minutes = parseInt(parts[1]) || 0;
+                                    const seconds = parseInt(parts[2]) || 0;
+                                    totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                                } else if (parts.length === 2) {
+                                    // Format: MM:SS
+                                    const minutes = parseInt(parts[0]) || 0;
+                                    const seconds = parseInt(parts[1]) || 0;
+                                    totalSeconds = minutes * 60 + seconds;
+                                }
+                            }
+                            
+                            // Add warning classes based on remaining time
+                            if (totalSeconds <= 300 && totalSeconds > 60) { // 5 minutes to 1 minute
+                                container.classList.add('warning');
+                            } else if (totalSeconds <= 60 && totalSeconds > 0) { // 1 minute to 0
+                                container.classList.add('critical');
+                            } else if (totalSeconds <= 0) {
+                                // Time's up
+                                container.classList.add('stopped');
+                            }
+                        }
+                    } else {
+                        statusEl.textContent = 'STOPPED';
+                        container.classList.add('stopped');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching timer status:', error);
+                    // Fallback display
+                    document.getElementById('activity').textContent = 'CONNECTION ERROR';
+                    document.getElementById('timer').textContent = '--:--:--';
+                    document.getElementById('status').textContent = 'OFFLINE';
+                    document.getElementById('mainContainer').className = 'container stopped';
+                });
+        }
+		
+		  
+        
+        // Update current time immediately and every second
+        updateCurrentTime();
+        setInterval(updateCurrentTime, 1000);
+        
+        // Update timer display immediately and every second
+        updateDisplay();
+        setInterval(updateDisplay, 1000);
+        
+        // Handle visibility change
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                updateCurrentTime();
+                updateDisplay();
+            }
+        });
+        
+        // Adjust font sizes based on actual content
+        function adjustFontSizes() {
+            const timerEl = document.getElementById('timer');
+            const container = document.getElementById('mainContainer');
+            
+            // Ensure timer fits perfectly
+            const timerWidth = timerEl.scrollWidth;
+            const containerWidth = container.clientWidth;
+            const timerHeight = timerEl.scrollHeight;
+            const containerHeight = container.clientHeight * 0.6; // Target 60% height
+            
+            // Adjust based on width
+            if (timerWidth > containerWidth * 0.95) {
+                const currentSize = parseInt(window.getComputedStyle(timerEl).fontSize);
+                const newSize = currentSize * (containerWidth * 0.95) / timerWidth;
+                timerEl.style.fontSize = newSize + 'px';
+            }
+            
+            // Also adjust based on height to ensure it uses 60% of screen
+            if (timerHeight < containerHeight) {
+                const currentSize = parseInt(window.getComputedStyle(timerEl).fontSize);
+                const newSize = currentSize * (containerHeight / timerHeight) * 0.9;
+                timerEl.style.fontSize = newSize + 'px';
+            }
+        }
+        
+        // Run adjustment after content loads and on resize
+        window.addEventListener('load', adjustFontSizes);
+        window.addEventListener('resize', adjustFontSizes);
+        
+        // Initial adjustment
+        setTimeout(adjustFontSizes, 100);
+        setTimeout(adjustFontSizes, 500); // Double check after render
+    </script>
+</body>
+</html>
