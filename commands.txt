@@ -1,0 +1,3 @@
+nano ~/.config/autostart/chromium-kiosk.desktop
+
+Exec=chromium --kiosk --noerrdialogs --disable-infobars --disable-session-crashed-bubble --disable-features=TranslateUI --password-store=basic --disable-component-update http://localhost
