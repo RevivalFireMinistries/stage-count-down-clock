@@ -6,9 +6,8 @@ import threading
 import time
 
 # Create the Flask app FIRST
-app = Flask(__name__)
+app = Flask(__name__, static_folder='static', static_url_path='/static')
 
-# Global state
 # Global state
 current_timer = {
     'current_activity': '',
@@ -145,22 +144,24 @@ def move_to_next_item():
     if result and result[0]:
         program_id, current_schedule_id = result
         
-        # Get next schedule item
-        c.execute('''
-            SELECT ps.id FROM program_schedules ps 
-            WHERE ps.program_id = ? AND ps.sort_order > 
-                (SELECT sort_order FROM program_schedules WHERE id = ?)
-            ORDER BY ps.sort_order LIMIT 1
-        ''', (program_id, current_schedule_id))
+        # Get current schedule (with live override if available)
+        schedule = get_current_schedule()
         
-        next_schedule = c.fetchone()
+        # Find current item index
+        current_index = None
+        for i, item in enumerate(schedule):
+            if item['id'] == current_schedule_id:
+                current_index = i
+                break
         
-        if next_schedule:
+        if current_index is not None and current_index < len(schedule) - 1:
+            # Move to next item
+            next_item = schedule[current_index + 1]
             c.execute('''
                 UPDATE current_state 
                 SET current_schedule_id = ?, start_time = ?, is_paused = FALSE
                 WHERE id = 1
-            ''', (next_schedule[0], datetime.now().isoformat()))
+            ''', (next_item['id'], datetime.now().isoformat()))
         else:
             # End of program
             c.execute('UPDATE current_state SET is_running = FALSE WHERE id = 1')
@@ -168,6 +169,7 @@ def move_to_next_item():
         conn.commit()
     
     conn.close()
+
 def get_current_schedule():
     """Get the current schedule, using live override if available"""
     if live_schedule_override:
@@ -255,43 +257,145 @@ def get_live_schedule():
         'is_running': is_running
     })
 
-
-# Update move_to_next_item to use live schedule
-def move_to_next_item():
+# Auto-start function - called on app startup
+def check_and_auto_start():
+    """Check if there's a program that should auto-start for today"""
     conn = init_database()
     c = conn.cursor()
     
-    c.execute('SELECT current_program_id, current_schedule_id FROM current_state WHERE id = 1')
+    # Get current day of week (e.g., "Monday", "Sunday")
+    current_day = datetime.now().strftime('%A')
+    
+    # Check if there's already a program running
+    c.execute('SELECT is_running FROM current_state WHERE id = 1')
     result = c.fetchone()
     
     if result and result[0]:
-        program_id, current_schedule_id = result
+        # Already running, don't auto-start
+        conn.close()
+        return
+    
+    # Find programs set to auto-start for today
+    c.execute('''
+        SELECT id, name, scheduled_start_time 
+        FROM programs 
+        WHERE day_of_week = ? AND auto_start = TRUE
+        ORDER BY scheduled_start_time
+        LIMIT 1
+    ''', (current_day,))
+    
+    program = c.fetchone()
+    conn.close()
+    
+    if program:
+        program_id, program_name, scheduled_start_time = program
+        print(f"Auto-starting program: {program_name} (ID: {program_id}) scheduled for {scheduled_start_time}")
         
-        # Get current schedule (with live override if available)
-        schedule = get_current_schedule()
+        # Use smart start to begin the program
+        try:
+            # This will handle the waiting state if needed
+            start_program_smart_internal(program_id)
+        except Exception as e:
+            print(f"Error auto-starting program: {e}")
+
+def start_program_smart_internal(program_id):
+    """Internal function to start a program smartly (used by auto-start)"""
+    conn = init_database()
+    c = conn.cursor()
+    
+    # Get program details including scheduled start time
+    c.execute('SELECT name, scheduled_start_time FROM programs WHERE id = ?', (program_id,))
+    program = c.fetchone()
+    
+    if not program:
+        conn.close()
+        return
+    
+    program_name, scheduled_start_str = program
+    
+    # Parse scheduled start time
+    try:
+        scheduled_hour, scheduled_minute = map(int, scheduled_start_str.split(':'))
+        now = datetime.now()
+        scheduled_start = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
+    except ValueError:
+        conn.close()
+        return
+    
+    # Check if current time is before scheduled start
+    if now < scheduled_start:
+        # SET THE WAITING STATE IN current_timer
+        current_timer['waiting_for_start'] = True
+        current_timer['scheduled_start_time'] = scheduled_start_str
+        current_timer['waiting_program_name'] = program_name
+        current_timer['is_running'] = False
+        current_timer['is_paused'] = False
         
-        # Find current item index
-        current_index = None
-        for i, item in enumerate(schedule):
-            if item['id'] == current_schedule_id:
-                current_index = i
+        conn.close()
+        print(f"Program {program_name} waiting for scheduled start at {scheduled_start_str}")
+        return
+    
+    # Clear waiting state when starting
+    current_timer['waiting_for_start'] = False
+    current_timer['scheduled_start_time'] = ''
+    current_timer['waiting_program_name'] = ''
+    
+    # If we're at or after scheduled start time, proceed with normal smart start
+    current_schedule_id = calculate_current_activity(program_id)
+    
+    if current_schedule_id:
+        # Get the duration of the current activity for timer calculation
+        c.execute('SELECT duration_minutes FROM program_schedules WHERE id = ?', (current_schedule_id,))
+        duration_result = c.fetchone()
+        current_duration = duration_result[0] if duration_result else 5
+        
+        # Calculate when this activity started based on scheduled program start
+        activity_start_time = scheduled_start
+        
+        # Calculate elapsed time to find when current activity started
+        c.execute('''
+            SELECT ps.sort_order, ps.duration_minutes 
+            FROM program_schedules ps 
+            WHERE ps.program_id = ? 
+            ORDER BY ps.sort_order
+        ''', (program_id,))
+        all_activities = c.fetchall()
+        
+        for sort_order, duration in all_activities:
+            c.execute('SELECT id FROM program_schedules WHERE program_id = ? AND sort_order = ?', 
+                     (program_id, sort_order))
+            schedule_id = c.fetchone()[0]
+            
+            if schedule_id == current_schedule_id:
                 break
+            activity_start_time += timedelta(minutes=duration)
         
-        if current_index is not None and current_index < len(schedule) - 1:
-            # Move to next item
-            next_item = schedule[current_index + 1]
+        c.execute('''
+            UPDATE current_state 
+            SET current_program_id = ?, current_schedule_id = ?, 
+                is_running = TRUE, is_paused = FALSE, start_time = ?
+            WHERE id = 1
+        ''', (program_id, current_schedule_id, activity_start_time.isoformat()))
+    else:
+        # Fallback: start from beginning
+        c.execute('''
+            SELECT ps.id FROM program_schedules ps 
+            WHERE ps.program_id = ? 
+            ORDER BY ps.sort_order LIMIT 1
+        ''', (program_id,))
+        first_schedule = c.fetchone()
+        
+        if first_schedule:
             c.execute('''
                 UPDATE current_state 
-                SET current_schedule_id = ?, start_time = ?, is_paused = FALSE
+                SET current_program_id = ?, current_schedule_id = ?, 
+                    is_running = TRUE, is_paused = FALSE, start_time = ?
                 WHERE id = 1
-            ''', (next_item['id'], datetime.now().isoformat()))
-        else:
-            # End of program
-            c.execute('UPDATE current_state SET is_running = FALSE WHERE id = 1')
-        
-        conn.commit()
+            ''', (program_id, first_schedule[0], scheduled_start.isoformat()))
     
-    conn.close()    
+    conn.commit()
+    conn.close()
+    print(f"Program {program_name} started successfully")
 
 # Routes - NOW they can use the @app.route decorator
 @app.route('/')
@@ -330,8 +434,6 @@ def start_program():
     
     conn.close()
     return jsonify({'status': 'success'})
-
-# In app.py, update the start_program_smart function:
 
 @app.route('/api/start_program_smart', methods=['POST'])
 def start_program_smart():
@@ -512,7 +614,7 @@ def get_programs():
     c = conn.cursor()
     
     c.execute('''
-        SELECT p.id, p.name, p.description, p.scheduled_start_time,
+        SELECT p.id, p.name, p.description, p.scheduled_start_time, p.day_of_week, p.auto_start,
                COUNT(ps.id) as activity_count
         FROM programs p
         LEFT JOIN program_schedules ps ON p.id = ps.program_id
@@ -520,7 +622,8 @@ def get_programs():
         ORDER BY p.name
     ''')
     programs = [{'id': row[0], 'name': row[1], 'description': row[2], 
-                'scheduled_start_time': row[3], 'activity_count': row[4]} 
+                'scheduled_start_time': row[3], 'day_of_week': row[4], 
+                'auto_start': bool(row[5]), 'activity_count': row[6]} 
                for row in c.fetchall()]
     
     conn.close()
@@ -531,8 +634,8 @@ def get_program(program_id):
     conn = init_database()
     c = conn.cursor()
     
-    # Get program details including scheduled_start_time
-    c.execute('SELECT id, name, description, scheduled_start_time FROM programs WHERE id = ?', (program_id,))
+    # Get program details including day_of_week and auto_start
+    c.execute('SELECT id, name, description, scheduled_start_time, day_of_week, auto_start FROM programs WHERE id = ?', (program_id,))
     program = c.fetchone()
     
     if not program:
@@ -558,6 +661,8 @@ def get_program(program_id):
         'name': program[1],
         'description': program[2],
         'scheduled_start_time': program[3],
+        'day_of_week': program[4],
+        'auto_start': bool(program[5]),
         'schedule': schedule
     })
 
@@ -567,6 +672,8 @@ def create_program():
     name = data.get('name')
     description = data.get('description', '')
     scheduled_start_time = data.get('scheduled_start_time', '')
+    day_of_week = data.get('day_of_week', '')
+    auto_start = data.get('auto_start', False)
     
     if not name:
         return jsonify({'error': 'Program name is required'}), 400
@@ -575,8 +682,8 @@ def create_program():
     c = conn.cursor()
     
     try:
-        c.execute('INSERT INTO programs (name, description, scheduled_start_time) VALUES (?, ?, ?)', 
-                 (name, description, scheduled_start_time))
+        c.execute('INSERT INTO programs (name, description, scheduled_start_time, day_of_week, auto_start) VALUES (?, ?, ?, ?, ?)', 
+                 (name, description, scheduled_start_time, day_of_week, auto_start))
         program_id = c.lastrowid
         conn.commit()
         conn.close()
@@ -591,12 +698,14 @@ def update_program(program_id):
     name = data.get('name')
     description = data.get('description', '')
     scheduled_start_time = data.get('scheduled_start_time', '')
+    day_of_week = data.get('day_of_week', '')
+    auto_start = data.get('auto_start', False)
     
     conn = init_database()
     c = conn.cursor()
     
-    c.execute('UPDATE programs SET name = ?, description = ?, scheduled_start_time = ? WHERE id = ?', 
-             (name, description, scheduled_start_time, program_id))
+    c.execute('UPDATE programs SET name = ?, description = ?, scheduled_start_time = ?, day_of_week = ?, auto_start = ? WHERE id = ?', 
+             (name, description, scheduled_start_time, day_of_week, auto_start, program_id))
     
     if c.rowcount == 0:
         conn.close()
@@ -789,6 +898,8 @@ def timer_status():
 if __name__ == '__main__':
     from database import init_db
     init_db()
-    app.run(host='0.0.0.0', port=80, debug=False, threaded=True)
     
- 
+    # Check and auto-start programs after database initialization
+    check_and_auto_start()
+    
+    app.run(host='0.0.0.0', port=80, debug=False, threaded=True)

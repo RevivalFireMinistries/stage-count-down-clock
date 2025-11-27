@@ -14,6 +14,8 @@ def init_db():
             name TEXT NOT NULL UNIQUE,
             description TEXT,
             scheduled_start_time TEXT,
+            day_of_week TEXT,
+            auto_start BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -78,8 +80,8 @@ def init_db():
     c.execute('SELECT COUNT(*) FROM programs')
     if c.fetchone()[0] == 0:
         # Insert default programs only if table is empty
-        c.execute('INSERT INTO programs (name, description, scheduled_start_time) VALUES (?, ?, ?)', 
-                 ('Sunday Program', 'Regular Sunday service schedule', '09:30'))
+        c.execute('INSERT INTO programs (name, description, scheduled_start_time, day_of_week, auto_start) VALUES (?, ?, ?, ?, ?)', 
+                 ('Sunday Program', 'Regular Sunday service schedule', '09:30', 'Sunday', True))
         sunday_id = c.lastrowid
         
         sunday_schedule = [
@@ -100,8 +102,8 @@ def init_db():
                 VALUES (?, ?, ?, ?)
             ''', (sunday_id, activity_id, duration, i))
         
-        c.execute('INSERT INTO programs (name, description, scheduled_start_time) VALUES (?, ?, ?)', 
-                 ('Friday Service', 'Friday evening service', '18:00'))
+        c.execute('INSERT INTO programs (name, description, scheduled_start_time, day_of_week, auto_start) VALUES (?, ?, ?, ?, ?)', 
+                 ('Friday Service', 'Friday evening service', '18:00', 'Friday', True))
         friday_id = c.lastrowid
         
         friday_schedule = [
