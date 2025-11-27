@@ -4,7 +4,7 @@
 <head>
     <title>Church Countdown Timer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Digital+7&family=DS-Digital&family=Audiowide&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -15,7 +15,7 @@
         body {
             background: #000000;
             color: #ffffff;
-            font-family: 'Arial', sans-serif;
+            font-family: 'Poppins', sans-serif;
             height: 100vh;
             width: 100vw;
             display: flex;
@@ -23,402 +23,657 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            padding: 0;
+            position: relative;
         }
         
+        /* Current Time and Status Bar */
+        .top-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2.5vh 4vw;
+            background: rgba(255, 255, 255, 0.03);
+            z-index: 100;
+        }
+        
+        .current-time {
+            font-size: 6vh;
+            font-weight: 700;
+            letter-spacing: 3px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .status-badge {
+            font-size: 2.5vh;
+            font-weight: 700;
+            letter-spacing: 3px;
+            padding: 1.2vh 3vw;
+            border-radius: 50px;
+            text-transform: uppercase;
+        }
+        
+        .status-stopped {
+            background: rgba(231, 76, 60, 0.2);
+            color: #e74c3c;
+            border: 2px solid #e74c3c;
+        }
+        
+        .status-running {
+            background: rgba(46, 204, 113, 0.2);
+            color: #2ecc71;
+            border: 2px solid #2ecc71;
+            animation: pulse 2s infinite;
+        }
+        
+        .status-paused {
+            background: rgba(243, 156, 18, 0.2);
+            color: #f39c12;
+            border: 2px solid #f39c12;
+            animation: blink 1.5s infinite;
+        }
+        
+        .status-waiting {
+            background: rgba(241, 196, 15, 0.2);
+            color: #f1c40f;
+            border: 2px solid #f1c40f;
+            animation: pulse 2s infinite;
+        }
+        
+        /* Main Container */
         .container {
             width: 100%;
             height: 100%;
             display: flex;
             flex-direction: column;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
             text-align: center;
-            padding: 1vh 5vw 2vh 5vw;
-            background: #000000;
+            padding: 12vh 5vw 12vh 5vw;
         }
         
-        .current-time-container {
-            flex: 0.5;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            max-height: 8vh;
-            padding-bottom: 1vh;
-        }
-        
-        .current-time {
-            font-size: 4vh;
-            font-weight: 400;
-            text-align: center;
-            letter-spacing: 2px;
-            color: #cccccc;
-            font-family: 'DS-Digital', 'Digital-7', 'Orbitron', monospace;
-        }
-        
-        .blinking-colon {
-            animation: blink 1s infinite;
-        }
-        
-        .activity-container {
-            flex: 1;
-            display: flex;
-            align-items: flex-end;
-            justify-content: center;
-            width: 100%;
-            max-height: 15vh;
-            padding-bottom: 2vh;
-        }
-        
-        .activity {
-            font-size: 5vh;
-            font-weight: 700;
-            text-align: center;
-            line-height: 1.1;
-            text-transform: uppercase;
-            letter-spacing: 3px;
-            color: #ffffff;
-            font-family: 'Orbitron', monospace;
-            max-width: 90vw;
-        }
-        
-        .timer-container {
-            flex: 3; /* 60% of screen height */
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
-            min-height: 60vh;
-        }
-        
-        .timer {
-            font-size: 40vh; /* Much larger font size */
+        /* Activity Name (Caption) */
+        .activity-name {
+            font-size: 7vh;
             font-weight: 900;
-            font-family: 'DS-Digital', 'Digital-7', 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 8px;
+            margin-bottom: 2vh;
             color: #ffffff;
-            line-height: 1;
-            margin: 0;
-            letter-spacing: 6px; /* Increased letter spacing for large text */
-            background: #000000;
-            padding: 4vh;
-            border-radius: 15px;
-            height: 100%;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        /* Time Remaining Label */
+        .time-label {
+            font-size: 2.8vh;
+            font-weight: 400;
+            letter-spacing: 6px;
+            margin-bottom: 6vh;
+            color: rgba(255, 255, 255, 0.4);
+            text-transform: uppercase;
+        }
+        
+        /* Countdown Container */
+        .countdown-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 3vw;
+            margin-bottom: 5vh;
+        }
+        
+        /* Flip Card Style */
+        .flip-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .flip-number {
+            background: #ffffff;
+            color: #000000;
+            font-size: 20vh;
+            font-weight: 900;
+            font-family: 'Poppins', sans-serif;
+            width: 24vh;
+            height: 28vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            border-radius: 2.5vh;
+            padding: 3vh 5vh;
+            position: relative;
+            transition: background-color 0.5s ease, color 0.5s ease, transform 0.3s ease;
         }
         
-        .status-container {
-            flex: 1;
-            display: flex;
-            align-items: flex-start;
-            justify-content: center;
-            width: 100%;
-            max-height: 15vh;
-            padding-top: 2vh;
+        /* Warning States */
+        .flip-number.warning-10 {
+            background: #f39c12;
+            color: #ffffff;
+            animation: warningPulse 2s infinite;
         }
         
-        .status {
-            font-size: 4vh;
+        .flip-number.warning-final {
+            background: #e74c3c;
+            color: #ffffff;
+            animation: criticalPulse 1s infinite;
+        }
+        
+        .flip-label {
+            margin-top: 2.5vh;
+            font-size: 2.8vh;
             font-weight: 700;
-            letter-spacing: 4px;
+            letter-spacing: 3px;
+            color: rgba(255, 255, 255, 0.6);
             text-transform: uppercase;
-            padding: 2vh 4vw;
-            border-radius: 8px;
-            background: #111111;
-            border: 2px solid #333333;
+            transition: color 0.5s ease;
+        }
+        
+        .flip-card.warning-10 .flip-label {
+            color: #f39c12;
+        }
+        
+        .flip-card.warning-final .flip-label {
+            color: #e74c3c;
+        }
+        
+        /* Colon Separator */
+        .colon {
+            font-size: 18vh;
+            font-weight: 900;
             color: #ffffff;
-            font-family: 'Orbitron', monospace;
+            margin: 0 1.5vw;
+            line-height: 28vh;
+            font-family: 'Poppins', sans-serif;
+            transition: color 0.5s ease;
         }
         
-        /* State-specific styles */
-        .running .timer {
-            color: #ffffff;
-            border: 4px solid #00ff00;
+        .colon.warning-10 {
+            color: #f39c12;
         }
         
-        .running .activity {
-            color: #ffffff;
+        .colon.warning-final {
+            color: #e74c3c;
         }
         
-        .running .status {
-            color: #00ff00;
-            border-color: #00ff00;
-            background: #111111;
+        /* Progress Bar Container */
+        .progress-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 3vh;
+            background: rgba(255, 255, 255, 0.1);
+            z-index: 90;
+            display: flex;
+            align-items: center;
         }
         
-        .paused .timer {
-            color: #ffffff;
-            border: 4px solid #ffff00;
-            animation: blink 1.5s infinite;
+        .progress-bar {
+            height: 100%;
+            background: #2ecc71;
+            transition: width 1s linear, background-color 0.5s ease;
+            width: 100%;
+            box-shadow: 0 0 20px rgba(46, 204, 113, 0.5);
         }
         
-        .paused .activity {
-            color: #ffffff;
-            animation: blink 1.5s infinite;
+        .progress-bar.warning-10 {
+            background: #f39c12;
+            box-shadow: 0 0 20px rgba(243, 156, 18, 0.5);
         }
         
-        .paused .status {
-            color: #ffff00;
-            border-color: #ffff00;
-            background: #111111;
-            animation: blink 1.5s infinite;
+        .progress-bar.warning-final {
+            background: #e74c3c;
+            box-shadow: 0 0 20px rgba(231, 76, 60, 0.5);
         }
         
-        .stopped .timer {
-            color: #ffffff;
-            border: 4px solid #ff0000;
+        /* Program End State */
+        .end-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #000000;
+            z-index: 80;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
         }
         
-        .stopped .activity {
-            color: #ffffff;
+        .end-text {
+            font-size: 25vh;
+            font-weight: 900;
+            color: #2ecc71;
+            letter-spacing: 15px;
+            animation: endPulse 2s ease-in-out infinite;
+            font-family: 'Poppins', sans-serif;
         }
         
-        .stopped .status {
-            color: #ff0000;
-            border-color: #ff0000;
-            background: #111111;
+        .end-subtext {
+            font-size: 5vh;
+            font-weight: 400;
+            color: rgba(46, 204, 113, 0.7);
+            margin-top: 4vh;
+            letter-spacing: 4px;
         }
         
-        .warning .timer {
-            animation: pulse 0.8s infinite;
-            color: #ffffff;
-            border: 4px solid #ffff00;
-        }
-        
-        .critical .timer {
-            animation: urgentPulse 0.3s infinite;
-            color: #ffffff;
-            border: 4px solid #ff0000;
+        /* Animations */
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
         
         @keyframes blink {
             0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0; }
+            51%, 100% { opacity: 0.3; }
         }
         
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.02); }
-            100% { transform: scale(1); }
+        @keyframes warningPulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 0 20px rgba(243, 156, 18, 0.5);
+            }
+            50% { 
+                transform: scale(1.02);
+                box-shadow: 0 0 40px rgba(243, 156, 18, 0.8);
+            }
         }
         
-        @keyframes urgentPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
+        @keyframes criticalPulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 0 30px rgba(231, 76, 60, 0.7);
+            }
+            50% { 
+                transform: scale(1.05);
+                box-shadow: 0 0 60px rgba(231, 76, 60, 1);
+            }
         }
         
-        /* Ensure no scrollbars and full screen */
-        html, body {
-            overflow: hidden;
-            height: 100%;
-            width: 100%;
-            background: #000000;
+        @keyframes endPulse {
+            0%, 100% { 
+                transform: scale(1);
+                text-shadow: 0 0 30px rgba(46, 204, 113, 0.5);
+            }
+            50% { 
+                transform: scale(1.05);
+                text-shadow: 0 0 60px rgba(46, 204, 113, 1);
+            }
+        }
+        
+        /* Waiting State */
+        .waiting-container {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .waiting-container.active {
+            display: flex;
+        }
+        
+        .waiting-time {
+            font-size: 30vh;
+            font-weight: 900;
+            color: #f1c40f;
+            margin: 4vh 0;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        /* Percentage Display - Top Right next to Status */
+        .percentage-display {
+            position: absolute;
+            top: 2.5vh;
+            right: 50%;
+            transform: translateX(50%);
+            font-size: 5vh;
+            font-weight: 700;
+            color: rgba(255, 255, 255, 0.4);
+            letter-spacing: 2px;
+            z-index: 85;
+            transition: color 0.5s ease;
+        }
+        
+        .percentage-display.warning-10 {
+            color: #f39c12;
+        }
+        
+        .percentage-display.warning-final {
+            color: #e74c3c;
+            animation: pulse 1s infinite;
         }
         
         /* Responsive adjustments */
-        @media (min-height: 1000px) {
-            .current-time { font-size: 5vh; }
-            .activity { font-size: 6vh; }
-            .timer { font-size: 45vh; }
-            .status { font-size: 5vh; }
-        }
-        
-        @media (max-height: 800px) {
-            .current-time { font-size: 3vh; }
-            .activity { font-size: 4vh; }
-            .timer { font-size: 35vh; }
-            .status { font-size: 3vh; }
-        }
-        
-        @media (max-height: 600px) {
-            .current-time { font-size: 2.5vh; }
-            .activity { font-size: 3vh; }
-            .timer { font-size: 25vh; }
-            .status { font-size: 2.5vh; }
-        }
-        
         @media (max-width: 768px) {
-            .current-time { font-size: 2.5vh; }
-            .timer { 
-                font-size: 25vh; 
-                letter-spacing: 3px;
-                padding: 3vh;
+            .flip-number {
+                font-size: 15vh;
+                width: 18vh;
+                height: 22vh;
             }
-            .activity {
-                font-size: 3vh;
-                letter-spacing: 2px;
+            .colon {
+                font-size: 13vh;
+                line-height: 22vh;
             }
-            .status {
-                font-size: 2.5vh;
-                letter-spacing: 2px;
+            .activity-name {
+                font-size: 5vh;
+            }
+            .end-text {
+                font-size: 15vh;
+            }
+            .progress-container {
+                height: 2vh;
             }
         }
         
-        /* Fallback font stack for digital displays */
-        @font-face {
-            font-family: 'Digital-7';
-            src: local('Digital-7'), local('Digital7');
+        /* Hidden by default */
+        .normal-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
         }
-		.waiting .timer {
-            color: #ffff00;
-            border: 4px solid #ffff00;
-            animation: pulse 2s infinite;
-        }
-
-        .waiting .activity {
-            color: #ffff00;
-        }
-
-        .waiting .status {
-            color: #ffff00;
-            border-color: #ffff00;
-            background: #111111;
-            animation: pulse 2s infinite;
+        
+        .normal-view.hidden {
+            display: none;
         }
     </style>
 </head>
 <body>
+    <!-- Top Bar with Current Time and Status -->
+    <div class="top-bar">
+        <div class="current-time" id="currentTime">00:00</div>
+        <div class="percentage-display" id="percentageDisplay">100%</div>
+        <div class="status-badge status-stopped" id="statusBadge">STOPPED</div>
+    </div>
+
+    <!-- Main Container -->
     <div class="container" id="mainContainer">
-        <div class="current-time-container">
-            <div class="current-time" id="currentTime">00<span class="blinking-colon">:</span>00</div>
+        
+        <!-- Normal Countdown View -->
+        <div class="normal-view" id="normalView">
+            <!-- Activity Name (Caption) -->
+            <div class="activity-name" id="activityName">READY</div>
+            
+            <!-- Time Remaining Label -->
+            <div class="time-label">TIME REMAINING</div>
+            
+            <!-- Countdown Container -->
+            <div class="countdown-container" id="countdownContainer">
+                <!-- Hours -->
+                <div class="flip-card" id="hoursCard">
+                    <div class="flip-number" id="hours">00</div>
+                    <div class="flip-label">HOURS</div>
+                </div>
+                
+                <!-- Colon -->
+                <div class="colon" id="colon1">:</div>
+                
+                <!-- Minutes -->
+                <div class="flip-card" id="minutesCard">
+                    <div class="flip-number" id="minutes">00</div>
+                    <div class="flip-label">MINUTES</div>
+                </div>
+                
+                <!-- Colon -->
+                <div class="colon" id="colon2">:</div>
+                
+                <!-- Seconds -->
+                <div class="flip-card" id="secondsCard">
+                    <div class="flip-number" id="seconds">00</div>
+                    <div class="flip-label">SECONDS</div>
+                </div>
+            </div>
         </div>
         
-        <div class="activity-container">
-            <div class="activity" id="activity">READY</div>
+        <!-- Waiting State View -->
+        <div class="waiting-container" id="waitingView">
+            <div class="activity-name" id="waitingProgramName"></div>
+            <div class="time-label">STARTS AT</div>
+            <div class="waiting-time" id="waitingTime">09:30</div>
         </div>
         
-        <div class="timer-container">
-            <div class="timer" id="timer">00:00:00</div>
-        </div>
-        
-        <div class="status-container">
-            <div class="status" id="status">STOPPED</div>
-        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+    </div>
+    
+    <!-- Program End Overlay -->
+    <div class="end-overlay" id="endOverlay">
+        <div class="end-text">THE END</div>
+        <div class="end-subtext">Program Complete</div>
     </div>
 
     <script>
-	// Add these lines after the existing variables
-		let waitingForStart = false;
-		let scheduledStartTime = '';
-		let waitingProgramName = '';
+        let waitingForStart = false;
+        let scheduledStartTime = '';
+        let waitingProgramName = '';
+        let showingEndScreen = false;
+        let endScreenTimer = null;
+        let totalProgramSeconds = 0;
+        
         function updateCurrentTime() {
             const now = new Date();
             const hours = now.getHours().toString().padStart(2, '0');
             const minutes = now.getMinutes().toString().padStart(2, '0');
-            document.getElementById('currentTime').innerHTML = `${hours}<span class="blinking-colon">:</span>${minutes}`;
+            document.getElementById('currentTime').textContent = `${hours}:${minutes}`;
         }
-
-       function updateDisplay() {
-    fetch('/api/timer_status')
-        .then(response => response.json())
-        .then(data => {
-            const container = document.getElementById('mainContainer');
-            const activityEl = document.getElementById('activity');
-            const timerEl = document.getElementById('timer');
-            const statusEl = document.getElementById('status');
-            
-            // Check if we're in waiting mode - UPDATE THIS SECTION
-            if (data.waiting_for_start) {
-                waitingForStart = data.waiting_for_start;
-                scheduledStartTime = data.scheduled_start_time || '';
-                waitingProgramName = data.waiting_program_name || '';
-                
-                activityEl.textContent = `${waitingProgramName} starts at`;
-                timerEl.textContent = scheduledStartTime;
-                statusEl.textContent = 'STARTING SOON';
-                container.className = 'container waiting';
-                timerEl.className = 'timer';
-                return;
-            } else {
-                // Clear waiting state when program starts
-                waitingForStart = false;
-            }
-            
-            // Update content for normal operation
-            activityEl.textContent = data.current_activity || 'READY';
+        
+        function updateDisplay() {
+            fetch('/api/timer_status')
+                .then(response => response.json())
+                .then(data => {
+                    const statusBadge = document.getElementById('statusBadge');
+                    const normalView = document.getElementById('normalView');
+                    const waitingView = document.getElementById('waitingView');
+                    const endOverlay = document.getElementById('endOverlay');
+                    const progressBar = document.getElementById('progressBar');
+                    const percentageDisplay = document.getElementById('percentageDisplay');
                     
-                    // Update content for normal operation
-                    activityEl.textContent = data.current_activity || 'READY';
+                    // Get all elements that need warning classes
+                    const hoursCard = document.getElementById('hoursCard');
+                    const minutesCard = document.getElementById('minutesCard');
+                    const secondsCard = document.getElementById('secondsCard');
+                    const hoursNum = document.getElementById('hours');
+                    const minutesNum = document.getElementById('minutes');
+                    const secondsNum = document.getElementById('seconds');
+                    const colon1 = document.getElementById('colon1');
+                    const colon2 = document.getElementById('colon2');
                     
-                    // Use the time format directly from backend (should be HH:MM:SS)
-                    let displayTime = data.time_remaining || '00:00:00';
+                    // Check if we're in waiting mode (only if not stopped)
+                    if (data.waiting_for_start && !data.is_running) {
+                        waitingForStart = true;
+                        scheduledStartTime = data.scheduled_start_time || '';
+                        waitingProgramName = data.waiting_program_name || '';
+                        
+                        // Show waiting view
+                        normalView.classList.add('hidden');
+                        waitingView.classList.add('active');
+                        
+                        document.getElementById('waitingProgramName').textContent = waitingProgramName;
+                        document.getElementById('waitingTime').textContent = scheduledStartTime;
+                        
+                        statusBadge.textContent = 'STARTING SOON';
+                        statusBadge.className = 'status-badge status-waiting';
+                        
+                        // Hide overlays
+                        endOverlay.style.display = 'none';
+                        progressBar.style.width = '100%';
+                        progressBar.className = 'progress-bar';
+                        percentageDisplay.textContent = '100%';
+                        percentageDisplay.className = 'percentage-display';
+                        showingEndScreen = false;
+                        if (endScreenTimer) clearTimeout(endScreenTimer);
+                        
+                        return;
+                    } else {
+                        // Clear waiting state
+                        waitingForStart = false;
+                        scheduledStartTime = '';
+                        waitingProgramName = '';
+                        normalView.classList.remove('hidden');
+                        waitingView.classList.remove('active');
+                    }
                     
-                    // Ensure we have proper HH:MM:SS format
-                    if (displayTime) {
-                        const parts = displayTime.split(':');
-                        if (parts.length === 2) {
-                            // If backend sends MM:SS, convert to 00:MM:SS
-                            displayTime = `00:${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
-                        } else if (parts.length === 3) {
-                            // Ensure all parts have 2 digits
-                            displayTime = parts.map(part => part.padStart(2, '0')).join(':');
+                    // Update activity name
+                    document.getElementById('activityName').textContent = data.current_activity || 'READY';
+                    
+                    // Parse time remaining
+                    let timeText = data.time_remaining || '00:00:00';
+                    let totalSeconds = 0;
+                    
+                    if (timeText && timeText.includes(':')) {
+                        const parts = timeText.split(':');
+                        if (parts.length === 3) {
+                            const hours = parseInt(parts[0]) || 0;
+                            const minutes = parseInt(parts[1]) || 0;
+                            const seconds = parseInt(parts[2]) || 0;
+                            totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                            
+                            // Update display
+                            document.getElementById('hours').textContent = parts[0].padStart(2, '0');
+                            document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
+                            document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
+                        } else if (parts.length === 2) {
+                            const minutes = parseInt(parts[0]) || 0;
+                            const seconds = parseInt(parts[1]) || 0;
+                            totalSeconds = minutes * 60 + seconds;
+                            
+                            document.getElementById('hours').textContent = '00';
+                            document.getElementById('minutes').textContent = parts[0].padStart(2, '0');
+                            document.getElementById('seconds').textContent = parts[1].padStart(2, '0');
                         }
                     }
                     
-                    timerEl.textContent = displayTime;
-                    
-                    // Remove all state classes
-                    container.className = 'container';
-                    timerEl.className = 'timer';
-                    
-                    // Apply current state
+                    // Handle different states
                     if (data.is_running) {
                         if (data.is_paused) {
-                            statusEl.textContent = 'PAUSED';
-                            container.classList.add('paused');
+                            statusBadge.textContent = 'PAUSED';
+                            statusBadge.className = 'status-badge status-paused';
                         } else {
-                            statusEl.textContent = 'LIVE';
-                            container.classList.add('running');
+                            statusBadge.textContent = 'LIVE';
+                            statusBadge.className = 'status-badge status-running';
                             
-                            // Check for low time warnings
-                            const timeText = data.time_remaining;
-                            let totalSeconds = 0;
-                            
-                            if (timeText && timeText.includes(':')) {
-                                const parts = timeText.split(':');
-                                if (parts.length === 3) {
-                                    // Format: HH:MM:SS
-                                    const hours = parseInt(parts[0]) || 0;
-                                    const minutes = parseInt(parts[1]) || 0;
-                                    const seconds = parseInt(parts[2]) || 0;
-                                    totalSeconds = hours * 3600 + minutes * 60 + seconds;
-                                } else if (parts.length === 2) {
-                                    // Format: MM:SS
-                                    const minutes = parseInt(parts[0]) || 0;
-                                    const seconds = parseInt(parts[1]) || 0;
-                                    totalSeconds = minutes * 60 + seconds;
-                                }
+                            // Set total program seconds on first run or when starting
+                            if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
+                                totalProgramSeconds = totalSeconds;
                             }
                             
-                            // Add warning classes based on remaining time
-                            if (totalSeconds <= 300 && totalSeconds > 60) { // 5 minutes to 1 minute
-                                container.classList.add('warning');
-                            } else if (totalSeconds <= 60 && totalSeconds > 0) { // 1 minute to 0
-                                container.classList.add('critical');
-                            } else if (totalSeconds <= 0) {
-                                // Time's up
-                                container.classList.add('stopped');
+                            // Calculate percentage remaining
+                            let percentage = totalProgramSeconds > 0 ? (totalSeconds / totalProgramSeconds) * 100 : 0;
+                            percentage = Math.max(0, Math.min(100, percentage));
+                            
+                            // Update progress bar
+                            progressBar.style.width = percentage + '%';
+                            percentageDisplay.textContent = Math.round(percentage) + '%';
+                            
+                            // Check for end of program (time = 0 and activity exists)
+                            if (totalSeconds <= 0 && data.current_activity && data.current_activity !== 'READY') {
+                                // Show "THE END" screen
+                                if (!showingEndScreen) {
+                                    showingEndScreen = true;
+                                    endOverlay.style.display = 'flex';
+                                    totalProgramSeconds = 0; // Reset for next program
+                                    
+                                    // Auto-hide after 5 minutes (300 seconds)
+                                    if (endScreenTimer) clearTimeout(endScreenTimer);
+                                    endScreenTimer = setTimeout(() => {
+                                        showingEndScreen = false;
+                                        endOverlay.style.display = 'none';
+                                    }, 300000); // 5 minutes
+                                }
+                                return;
+                            } else {
+                                // Clear end screen if showing
+                                showingEndScreen = false;
+                                endOverlay.style.display = 'none';
+                                if (endScreenTimer) clearTimeout(endScreenTimer);
+                            }
+                            
+                            // Apply warning classes based on percentage
+                            // Clear all warning classes first
+                            [hoursCard, minutesCard, secondsCard].forEach(card => {
+                                card.classList.remove('warning-10', 'warning-final');
+                            });
+                            [hoursNum, minutesNum, secondsNum].forEach(num => {
+                                num.classList.remove('warning-10', 'warning-final');
+                            });
+                            [colon1, colon2].forEach(col => {
+                                col.classList.remove('warning-10', 'warning-final');
+                            });
+                            progressBar.classList.remove('warning-10', 'warning-final');
+                            percentageDisplay.classList.remove('warning-10', 'warning-final');
+                            
+                            // Apply appropriate warning level
+                            if (totalSeconds <= 60) {
+                                // FINAL MINUTE - Red
+                                [hoursCard, minutesCard, secondsCard].forEach(card => {
+                                    card.classList.add('warning-final');
+                                });
+                                [hoursNum, minutesNum, secondsNum].forEach(num => {
+                                    num.classList.add('warning-final');
+                                });
+                                [colon1, colon2].forEach(col => {
+                                    col.classList.add('warning-final');
+                                });
+                                progressBar.classList.add('warning-final');
+                                percentageDisplay.classList.add('warning-final');
+                            } else if (percentage <= 10) {
+                                // 10% REMAINING - Orange/Yellow
+                                [hoursCard, minutesCard, secondsCard].forEach(card => {
+                                    card.classList.add('warning-10');
+                                });
+                                [hoursNum, minutesNum, secondsNum].forEach(num => {
+                                    num.classList.add('warning-10');
+                                });
+                                [colon1, colon2].forEach(col => {
+                                    col.classList.add('warning-10');
+                                });
+                                progressBar.classList.add('warning-10');
+                                percentageDisplay.classList.add('warning-10');
                             }
                         }
                     } else {
-                        statusEl.textContent = 'STOPPED';
-                        container.classList.add('stopped');
+                        statusBadge.textContent = 'STOPPED';
+                        statusBadge.className = 'status-badge status-stopped';
+                        
+                        // Clear all warnings when stopped
+                        [hoursCard, minutesCard, secondsCard].forEach(card => {
+                            card.classList.remove('warning-10', 'warning-final');
+                        });
+                        [hoursNum, minutesNum, secondsNum].forEach(num => {
+                            num.classList.remove('warning-10', 'warning-final');
+                        });
+                        [colon1, colon2].forEach(col => {
+                            col.classList.remove('warning-10', 'warning-final');
+                        });
+                        progressBar.classList.remove('warning-10', 'warning-final');
+                        percentageDisplay.classList.remove('warning-10', 'warning-final');
+                        
+                        endOverlay.style.display = 'none';
+                        showingEndScreen = false;
+                        totalProgramSeconds = 0;
+                        progressBar.style.width = '100%';
+                        percentageDisplay.textContent = '100%';
+                        if (endScreenTimer) clearTimeout(endScreenTimer);
                     }
                 })
                 .catch(error => {
                     console.error('Error fetching timer status:', error);
-                    // Fallback display
-                    document.getElementById('activity').textContent = 'CONNECTION ERROR';
-                    document.getElementById('timer').textContent = '--:--:--';
-                    document.getElementById('status').textContent = 'OFFLINE';
-                    document.getElementById('mainContainer').className = 'container stopped';
+                    document.getElementById('activityName').textContent = 'CONNECTION ERROR';
+                    document.getElementById('statusBadge').textContent = 'OFFLINE';
+                    document.getElementById('statusBadge').className = 'status-badge status-stopped';
                 });
         }
-		
-		  
         
         // Update current time immediately and every second
         updateCurrentTime();
@@ -435,40 +690,6 @@
                 updateDisplay();
             }
         });
-        
-        // Adjust font sizes based on actual content
-        function adjustFontSizes() {
-            const timerEl = document.getElementById('timer');
-            const container = document.getElementById('mainContainer');
-            
-            // Ensure timer fits perfectly
-            const timerWidth = timerEl.scrollWidth;
-            const containerWidth = container.clientWidth;
-            const timerHeight = timerEl.scrollHeight;
-            const containerHeight = container.clientHeight * 0.6; // Target 60% height
-            
-            // Adjust based on width
-            if (timerWidth > containerWidth * 0.95) {
-                const currentSize = parseInt(window.getComputedStyle(timerEl).fontSize);
-                const newSize = currentSize * (containerWidth * 0.95) / timerWidth;
-                timerEl.style.fontSize = newSize + 'px';
-            }
-            
-            // Also adjust based on height to ensure it uses 60% of screen
-            if (timerHeight < containerHeight) {
-                const currentSize = parseInt(window.getComputedStyle(timerEl).fontSize);
-                const newSize = currentSize * (containerHeight / timerHeight) * 0.9;
-                timerEl.style.fontSize = newSize + 'px';
-            }
-        }
-        
-        // Run adjustment after content loads and on resize
-        window.addEventListener('load', adjustFontSizes);
-        window.addEventListener('resize', adjustFontSizes);
-        
-        // Initial adjustment
-        setTimeout(adjustFontSizes, 100);
-        setTimeout(adjustFontSizes, 500); // Double check after render
     </script>
 </body>
 </html>

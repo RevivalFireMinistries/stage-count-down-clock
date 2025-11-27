@@ -266,12 +266,12 @@ def check_and_auto_start():
     # Get current day of week (e.g., "Monday", "Sunday")
     current_day = datetime.now().strftime('%A')
     
-    # Check if there's already a program running
-    c.execute('SELECT is_running FROM current_state WHERE id = 1')
+    # Check if there's already a program running OR if manual override is active
+    c.execute('SELECT is_running, manual_override FROM current_state WHERE id = 1')
     result = c.fetchone()
     
-    if result and result[0]:
-        # Already running, don't auto-start
+    if result and (result[0] or result[1]):
+        # Already running or manual override active, don't auto-start
         conn.close()
         return
     
@@ -426,7 +426,8 @@ def start_program():
         c.execute('''
             UPDATE current_state 
             SET current_program_id = ?, current_schedule_id = ?, 
-                is_running = TRUE, is_paused = FALSE, start_time = ?
+                is_running = TRUE, is_paused = FALSE, start_time = ?,
+                manual_override = TRUE
             WHERE id = 1
         ''', (program_id, first_schedule[0], datetime.now().isoformat()))
         
@@ -517,9 +518,9 @@ def start_program_smart():
         c.execute('''
             UPDATE current_state 
             SET current_program_id = ?, current_schedule_id = ?, 
-                is_running = TRUE, is_paused = FALSE, start_time = ?
+                is_running = TRUE, is_paused = FALSE, start_time = ?, manual_override = TRUE
             WHERE id = 1
-        ''', (program_id, current_schedule_id, activity_start_time.isoformat()))
+        ''', (program_id, current_schedule_id, activity_start_time.isoformat(), True))
     else:
         # Fallback: start from beginning
         c.execute('''
@@ -533,9 +534,9 @@ def start_program_smart():
             c.execute('''
                 UPDATE current_state 
                 SET current_program_id = ?, current_schedule_id = ?, 
-                    is_running = TRUE, is_paused = FALSE, start_time = ?
+                    is_running = TRUE, is_paused = FALSE, start_time = ?, manual_override = TRUE
                 WHERE id = 1
-            ''', (program_id, first_schedule[0], scheduled_start.isoformat()))
+            ''', (program_id, first_schedule[0], scheduled_start.isoformat(), True))
     
     conn.commit()
     conn.close()
@@ -587,18 +588,22 @@ def stop_timer():
     conn = init_database()
     c = conn.cursor()
     
-    c.execute('UPDATE current_state SET is_running = FALSE, is_paused = FALSE WHERE id = 1')
+    c.execute('UPDATE current_state SET is_running = FALSE, is_paused = FALSE, manual_override = FALSE WHERE id = 1')
     conn.commit()
     conn.close()
     
     # Clear live override when stopping
     live_schedule_override = None
     
+    # Clear ALL timer state including waiting state
     current_timer.update({
         'is_running': False,
         'is_paused': False,
         'time_remaining': '00:00',
-        'current_activity': ''
+        'current_activity': '',
+        'waiting_for_start': False,
+        'scheduled_start_time': '',
+        'waiting_program_name': ''
     })
     return jsonify({'status': 'success'})
 
@@ -606,6 +611,17 @@ def stop_timer():
 def next_item():
     move_to_next_item()
     return jsonify({'status': 'success'})
+
+@app.route('/api/clear_manual_override', methods=['POST'])
+def clear_manual_override():
+    """Clear the manual override flag to allow auto-start to work again"""
+    conn = init_database()
+    c = conn.cursor()
+    c.execute('UPDATE current_state SET manual_override = FALSE WHERE id = 1')
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success', 'message': 'Manual override cleared. Auto-start will resume.'})
+
 
 # API Routes for Program Management
 @app.route('/api/programs')

@@ -642,11 +642,16 @@ async function resumeTimer() {
 }
 
 async function stopTimer() {
+    // Show confirmation dialog
+    if (!confirm('Are you sure you want to STOP the timer? This will clear all running programs and waiting states.')) {
+        return; // User cancelled
+    }
+    
     try {
         const response = await fetch('/api/stop_timer', { method: 'POST' });
         if (response.ok) {
             updateTimerControls(false, false);
-            showAlert('Timer stopped');
+            showAlert('Timer stopped and reset');
         }
     } catch (error) {
         console.error('Error stopping timer:', error);

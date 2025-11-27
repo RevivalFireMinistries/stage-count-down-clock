@@ -54,6 +54,7 @@ def init_db():
             is_paused BOOLEAN DEFAULT FALSE,
             start_time TIMESTAMP,
             paused_at TIMESTAMP,
+            manual_override BOOLEAN DEFAULT FALSE,
             FOREIGN KEY (current_program_id) REFERENCES programs (id),
             FOREIGN KEY (current_schedule_id) REFERENCES program_schedules (id)
         )
