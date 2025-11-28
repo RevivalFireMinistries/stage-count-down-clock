@@ -95,6 +95,43 @@
             padding: 12vh 5vw 12vh 5vw;
         }
         
+        /* Clock View - Default Display */
+        .clock-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .clock-view.hidden {
+            display: none;
+        }
+        
+        .current-time-main {
+            font-size: 25vh;
+            font-weight: 900;
+            color: #ffffff;
+            font-family: 'Poppins', sans-serif;
+            letter-spacing: 0.05em;
+            text-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            line-height: 1;
+            margin-bottom: 2vh;
+        }
+        
+        .current-date {
+            font-size: 4vh;
+            font-weight: 400;
+            color: rgba(255, 255, 255, 0.7);
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+        }
+        
+        /* When running - hide clock from center completely */
+        .clock-view.secondary {
+            display: none;
+        }
+        
         /* Activity Name (Caption) */
         .activity-name {
             font-size: 7vh;
@@ -374,15 +411,11 @@
         
         /* Hidden by default */
         .normal-view {
-            display: flex;
+            display: none;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             width: 100%;
-        }
-        
-        .normal-view.hidden {
-            display: none;
         }
     </style>
 </head>
@@ -397,8 +430,14 @@
     <!-- Main Container -->
     <div class="container" id="mainContainer">
         
+        <!-- Clock Mode (Default when stopped) -->
+        <div class="clock-view" id="clockView">
+            <div class="current-time-main" id="currentTimeMain">00:00</div>
+            <div class="current-date" id="currentDate">Monday, January 1, 2025</div>
+        </div>
+        
         <!-- Normal Countdown View -->
-        <div class="normal-view" id="normalView">
+        <div class="normal-view" id="normalView" style="display: none;">
             <!-- Activity Name (Caption) -->
             <div class="activity-name" id="activityName">READY</div>
             
@@ -465,7 +504,17 @@
             const now = new Date();
             const hours = now.getHours().toString().padStart(2, '0');
             const minutes = now.getMinutes().toString().padStart(2, '0');
+            
+            // Update top bar time
             document.getElementById('currentTime').textContent = `${hours}:${minutes}`;
+            
+            // Update main clock display
+            document.getElementById('currentTimeMain').textContent = `${hours}:${minutes}`;
+            
+            // Update date
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const dateStr = now.toLocaleDateString('en-US', options);
+            document.getElementById('currentDate').textContent = dateStr;
         }
         
         function updateDisplay() {
@@ -475,6 +524,10 @@
                     const statusBadge = document.getElementById('statusBadge');
                     const normalView = document.getElementById('normalView');
                     const waitingView = document.getElementById('waitingView');
+                    const clockView = document.getElementById('clockView');
+                    const warningOverlay = document.getElementById('warningOverlay');
+                    const warningText = document.getElementById('warningText');
+                    const criticalOverlay = document.getElementById('criticalOverlay');
                     const endOverlay = document.getElementById('endOverlay');
                     const progressBar = document.getElementById('progressBar');
                     const percentageDisplay = document.getElementById('percentageDisplay');
@@ -495,8 +548,10 @@
                         scheduledStartTime = data.scheduled_start_time || '';
                         waitingProgramName = data.waiting_program_name || '';
                         
-                        // Show waiting view
-                        normalView.classList.add('hidden');
+                        // Show waiting view, hide clock
+                        clockView.classList.add('hidden');
+                        clockView.classList.remove('secondary');
+                        normalView.style.display = 'none';
                         waitingView.classList.add('active');
                         
                         document.getElementById('waitingProgramName').textContent = waitingProgramName;
@@ -520,8 +575,20 @@
                         waitingForStart = false;
                         scheduledStartTime = '';
                         waitingProgramName = '';
-                        normalView.classList.remove('hidden');
                         waitingView.classList.remove('active');
+                    }
+                    
+                    // Determine if we should show clock or countdown
+                    if (data.is_running) {
+                        // RUNNING - Show countdown as main, clock as secondary
+                        clockView.classList.remove('hidden');
+                        clockView.classList.add('secondary');
+                        normalView.style.display = 'flex';
+                    } else {
+                        // STOPPED - Show clock as main, hide countdown
+                        clockView.classList.remove('hidden');
+                        clockView.classList.remove('secondary');
+                        normalView.style.display = 'none';
                     }
                     
                     // Update activity name
