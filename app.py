@@ -1062,6 +1062,117 @@ def next_autostart():
         print(f"Error getting next autostart: {e}")
         return jsonify({'has_autostart': False, 'error': str(e)}), 500
 
+@app.route('/api/stage_message', methods=['GET'])
+def get_stage_message():
+    """Get the current active stage message if any"""
+    try:
+        conn = init_database()
+        c = conn.cursor()
+        
+        now = datetime.now()
+        
+        # Get active message that hasn't expired
+        c.execute('''
+            SELECT id, message, duration_seconds, end_time, created_at
+            FROM stage_messages
+            WHERE is_active = TRUE AND end_time > ?
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''', (now,))
+        
+        message = c.fetchone()
+        conn.close()
+        
+        if message:
+            msg_id, msg_text, duration, end_time_str, created_at = message
+            end_time = datetime.fromisoformat(end_time_str)
+            
+            # Check if actually expired
+            if end_time > now:
+                time_remaining = (end_time - now).total_seconds()
+                
+                return jsonify({
+                    'has_message': True,
+                    'message': msg_text,
+                    'duration_seconds': duration,
+                    'end_time': end_time.isoformat(),
+                    'time_remaining': int(time_remaining),
+                    'expired': False
+                })
+        
+        return jsonify({'has_message': False, 'expired': True})
+        
+    except Exception as e:
+        print(f"Error getting stage message: {e}")
+        return jsonify({'has_message': False, 'error': str(e)}), 500
+
+@app.route('/api/stage_message', methods=['POST'])
+def send_stage_message():
+    """Send a message to display on stage"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        duration = int(data.get('duration_seconds', 60))
+        
+        if not message:
+            return jsonify({'error': 'Message cannot be empty'}), 400
+        
+        # Limit duration to 5 minutes (300 seconds)
+        duration = min(max(duration, 10), 300)
+        
+        conn = init_database()
+        c = conn.cursor()
+        
+        # Deactivate any existing messages
+        c.execute('UPDATE stage_messages SET is_active = FALSE WHERE is_active = TRUE')
+        
+        # Create new message
+        now = datetime.now()
+        end_time = now + timedelta(seconds=duration)
+        
+        c.execute('''
+            INSERT INTO stage_messages (message, duration_seconds, end_time, is_active)
+            VALUES (?, ?, ?, TRUE)
+        ''', (message, duration, end_time))
+        
+        message_id = c.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"[STAGE MESSAGE] Sent: '{message}' for {duration}s")
+        
+        return jsonify({
+            'status': 'success',
+            'message_id': message_id,
+            'duration': duration,
+            'end_time': end_time.isoformat()
+        })
+        
+    except Exception as e:
+        print(f"Error sending stage message: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/stage_message', methods=['DELETE'])
+def clear_stage_message():
+    """Clear the current stage message"""
+    try:
+        conn = init_database()
+        c = conn.cursor()
+        
+        c.execute('UPDATE stage_messages SET is_active = FALSE WHERE is_active = TRUE')
+        
+        conn.commit()
+        conn.close()
+        
+        print("[STAGE MESSAGE] Cleared")
+        
+        return jsonify({'status': 'success'})
+        
+    except Exception as e:
+        print(f"Error clearing stage message: {e}")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/timer_status')
 def timer_status():
     # Include waiting state information in the response

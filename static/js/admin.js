@@ -992,3 +992,122 @@ async function updateTimerStatus() {
         console.error('Error updating timer status:', error);
     }
 }
+// ============================================================================
+// STAGE MESSAGE FUNCTIONS
+// ============================================================================
+
+// Update character count
+
+// ============================================================================
+// STAGE MESSAGE FUNCTIONS
+// ============================================================================
+
+async function sendStageMessage() {
+    const messageInput = document.getElementById('stageMessageInput');
+    const durationSlider = document.getElementById('messageDuration');
+    const statusDiv = document.getElementById('messageStatus');
+    
+    const message = messageInput.value.trim();
+    const duration = parseInt(durationSlider.value);
+    
+    if (!message) {
+        showMessageStatus('Please enter a message', 'error');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/stage_message', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                message: message,
+                duration_seconds: duration
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            const minutes = Math.floor(duration / 60);
+            const secs = duration % 60;
+            const timeStr = `${minutes}:${secs.toString().padStart(2, '0')}`;
+            
+            showMessageStatus(`✓ Message sent to stage! Will display for ${timeStr}`, 'success');
+            
+            // Clear input after successful send
+            messageInput.value = '';
+            document.getElementById('messageCharCount').textContent = '0';
+        } else {
+            showMessageStatus('Error: ' + (data.error || 'Failed to send message'), 'error');
+        }
+    } catch (error) {
+        console.error('Error sending stage message:', error);
+        showMessageStatus('Error: Failed to send message', 'error');
+    }
+}
+
+async function clearStageMessage() {
+    const statusDiv = document.getElementById('messageStatus');
+    
+    try {
+        const response = await fetch('/api/stage_message', {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showMessageStatus('✓ Stage message cleared', 'success');
+        } else {
+            showMessageStatus('Error: Failed to clear message', 'error');
+        }
+    } catch (error) {
+        console.error('Error clearing stage message:', error);
+        showMessageStatus('Error: Failed to clear message', 'error');
+    }
+}
+
+function showMessageStatus(message, type) {
+    const statusDiv = document.getElementById('messageStatus');
+    
+    statusDiv.textContent = message;
+    statusDiv.style.display = 'block';
+    
+    if (type === 'success') {
+        statusDiv.style.background = '#d4edda';
+        statusDiv.style.color = '#155724';
+        statusDiv.style.border = '1px solid #c3e6cb';
+    } else if (type === 'error') {
+        statusDiv.style.background = '#f8d7da';
+        statusDiv.style.color = '#721c24';
+        statusDiv.style.border = '1px solid #f5c6cb';
+    }
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 5000);
+}
+
+// Initialize stage message event listeners when DOM is ready
+document.addEventListener('DOMContentLoaded', function() {
+    const messageInput = document.getElementById('stageMessageInput');
+    const charCount = document.getElementById('messageCharCount');
+    const durationSlider = document.getElementById('messageDuration');
+    const durationDisplay = document.getElementById('durationDisplay');
+    
+    if (messageInput && charCount) {
+        messageInput.addEventListener('input', function() {
+            charCount.textContent = this.value.length;
+        });
+    }
+    
+    if (durationSlider && durationDisplay) {
+        durationSlider.addEventListener('input', function() {
+            const seconds = parseInt(this.value);
+            const minutes = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            durationDisplay.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
+        });
+    }
+});

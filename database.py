@@ -141,6 +141,17 @@ def init_db():
         )
     ''')
     
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS stage_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message TEXT NOT NULL,
+            duration_seconds INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            end_time TIMESTAMP NOT NULL,
+            is_active BOOLEAN DEFAULT TRUE
+        )
+    ''')
+    
     # Run migrations for existing tables
     run_migrations(conn)
     
