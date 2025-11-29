@@ -18,6 +18,26 @@
 
     <!-- Alert Container -->
     <div id="alertContainer"></div>
+    
+    <!-- Desktop Navigation (hidden on mobile) -->
+    <nav class="desktop-nav">
+        <button class="nav-btn active" onclick="switchTab('homeTab', this)">
+            <i class="fas fa-home"></i>
+            <span>Home</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('programsTab', this)">
+            <i class="fas fa-calendar-alt"></i>
+            <span>Programs</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('activitiesTab', this)">
+            <i class="fas fa-tasks"></i>
+            <span>Activities</span>
+        </button>
+        <button class="nav-btn" onclick="switchTab('scheduleTab', this)">
+            <i class="fas fa-clock"></i>
+            <span>Schedule</span>
+        </button>
+    </nav>
 
     <!-- Main Content Area -->
     <div class="content-wrapper">
