@@ -162,6 +162,38 @@
             margin-bottom: 5vh;
         }
         
+        .countdown-container.hide {
+            display: none;
+        }
+        
+        /* TIME UP Message */
+        .time-up-message {
+            display: none;
+            font-size: 25vh;
+            font-weight: 900;
+            color: #e74c3c;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            animation: pulse-urgent 1s infinite;
+            text-shadow: 0 0 30px rgba(231, 76, 60, 0.8);
+            margin-bottom: 5vh;
+        }
+        
+        .time-up-message.show {
+            display: block;
+        }
+        
+        @keyframes pulse-urgent {
+            0%, 100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+            50% {
+                transform: scale(1.05);
+                opacity: 0.9;
+            }
+        }
+        
         /* Flip Card Style */
         .flip-card {
             position: relative;
@@ -470,6 +502,9 @@
                     <div class="flip-label">SECONDS</div>
                 </div>
             </div>
+            
+            <!-- TIME UP Message (shown in final minutes) -->
+            <div class="time-up-message" id="timeUpMessage">TIME UP</div>
         </div>
         
         <!-- Waiting State View -->
@@ -619,6 +654,41 @@
                             document.getElementById('minutes').textContent = parts[0].padStart(2, '0');
                             document.getElementById('seconds').textContent = parts[1].padStart(2, '0');
                         }
+                    }
+                    
+                    // TIME UP logic - show instead of countdown in final minutes
+                    const countdownContainer = document.getElementById('countdownContainer');
+                    const timeUpMessage = document.getElementById('timeUpMessage');
+                    
+                    // Set total program seconds on first run or when activity changes
+                    if (data.is_running && !data.is_paused) {
+                        if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
+                            totalProgramSeconds = totalSeconds;
+                        }
+                    }
+                    
+                    // Determine if we should show TIME UP based on:
+                    // - Activities >= 30 minutes: show TIME UP in last 2 minutes (120 seconds)
+                    // - Activities < 30 minutes: show TIME UP in last 1 minute (60 seconds)
+                    let showTimeUp = false;
+                    if (data.is_running && !data.is_paused && totalProgramSeconds > 0) {
+                        const activityDuration = totalProgramSeconds;
+                        
+                        if (activityDuration >= 1800) {
+                            // 30+ minutes: show TIME UP in last 2 minutes
+                            showTimeUp = totalSeconds <= 120 && totalSeconds > 0;
+                        } else {
+                            // < 30 minutes: show TIME UP in last 1 minute
+                            showTimeUp = totalSeconds <= 60 && totalSeconds > 0;
+                        }
+                    }
+                    
+                    if (showTimeUp) {
+                        countdownContainer.classList.add('hide');
+                        timeUpMessage.classList.add('show');
+                    } else {
+                        countdownContainer.classList.remove('hide');
+                        timeUpMessage.classList.remove('show');
                     }
                     
                     // Handle different states
