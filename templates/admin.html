@@ -277,6 +277,28 @@
                         <button type="button" class="btn btn-danger" onclick="deleteCurrentProgram()">Delete</button>
                     </div>
                 </form>
+                
+                <!-- Activities Management Section -->
+                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e0e0e0;">
+                <div style="margin-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;"><i class="fas fa-list"></i> Program Schedule</h4>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="button" class="btn btn-primary btn-sm" onclick="showCreateActivityFromProgram()">
+                                <i class="fas fa-plus"></i> New Activity
+                            </button>
+                            <button type="button" class="btn btn-success btn-sm" onclick="showAddActivityFromProgram()">
+                                <i class="fas fa-plus-circle"></i> Add Existing
+                            </button>
+                        </div>
+                    </div>
+                    <p class="help-text" style="margin-bottom: 1rem;">
+                        <i class="fas fa-info-circle"></i> Manage activities in this program's schedule. Drag to reorder.
+                    </p>
+                    <div id="editProgramScheduleList" class="list-container" style="max-height: 300px; overflow-y: auto;">
+                        <!-- Schedule items will be populated here -->
+                    </div>
+                </div>
             </div>
         </div>
     </div>

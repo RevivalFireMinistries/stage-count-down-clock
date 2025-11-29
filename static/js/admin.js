@@ -141,19 +141,30 @@ function displayProgramSelector() {
 async function loadProgram(programId) {
     try {
         const response = await fetch(`/api/programs/${programId}`);
+        
+        if (!response.ok) {
+            throw new Error(`Failed to load program: ${response.status}`);
+        }
+        
         currentProgram = await response.json();
         displayCurrentProgram();
         displayProgramSchedule();
         showAlert(`Program "${currentProgram.name}" loaded successfully`);
     } catch (error) {
         console.error('Error loading program:', error);
-        showAlert('Error loading program', 'error');
+        showAlert('Error loading program: ' + error.message, 'error');
+        currentProgram = null;
     }
 }
 
 function displayCurrentProgram() {
     const currentProgramInfo = document.getElementById('currentProgramInfo');
     const editCurrentProgramBtn = document.getElementById('editCurrentProgramBtn');
+    
+    if (!currentProgramInfo) {
+        console.error('currentProgramInfo element not found');
+        return;
+    }
     
     if (currentProgram) {
         const autoStartText = currentProgram.auto_start ? ' (Auto-start enabled)' : '';
@@ -165,12 +176,27 @@ function displayCurrentProgram() {
             <p><strong>Scheduled Start:</strong> ${currentProgram.scheduled_start_time || 'Not set'}${autoStartText}</p>
             <p><strong>${currentProgram.schedule.length}</strong> activities in schedule</p>
         `;
-        document.getElementById('programScheduleCard').style.display = 'block';
-        editCurrentProgramBtn.style.display = 'block';
+        
+        // Check if elements exist before accessing
+        const programScheduleCard = document.getElementById('programScheduleCard');
+        if (programScheduleCard) {
+            programScheduleCard.style.display = 'block';
+        }
+        
+        if (editCurrentProgramBtn) {
+            editCurrentProgramBtn.style.display = 'block';
+        }
     } else {
-        currentProgramInfo.innerHTML = '<p>No program loaded</p>';
-        document.getElementById('programScheduleCard').style.display = 'none';
-        editCurrentProgramBtn.style.display = 'none';
+        currentProgramInfo.innerHTML = '<p class="empty-text">No program loaded</p>';
+        
+        const programScheduleCard = document.getElementById('programScheduleCard');
+        if (programScheduleCard) {
+            programScheduleCard.style.display = 'none';
+        }
+        
+        if (editCurrentProgramBtn) {
+            editCurrentProgramBtn.style.display = 'none';
+        }
     }
     displayPrograms(); // Refresh to highlight current program
 }
@@ -306,7 +332,50 @@ function showEditProgramModal() {
     document.getElementById('editProgramDayOfWeek').value = currentProgram.day_of_week || '';
     document.getElementById('editProgramAutoStart').checked = currentProgram.auto_start || false;
     
+    // Populate the schedule list in the modal
+    displayEditProgramSchedule();
+    
     showModal('editProgramModal');
+}
+
+function displayEditProgramSchedule() {
+    const scheduleList = document.getElementById('editProgramScheduleList');
+    
+    if (!scheduleList) {
+        console.error('editProgramScheduleList element not found');
+        return;
+    }
+    
+    scheduleList.innerHTML = '';
+    
+    if (!currentProgram || !currentProgram.schedule || currentProgram.schedule.length === 0) {
+        scheduleList.innerHTML = `
+            <div class="empty-state" style="padding: 1rem; text-align: center;">
+                <i class="fas fa-clock" style="font-size: 2rem; color: #bdc3c7; margin-bottom: 0.5rem;"></i>
+                <p style="color: #7f8c8d; margin: 0;">No activities yet. Add some to get started!</p>
+            </div>
+        `;
+        return;
+    }
+    
+    currentProgram.schedule.forEach((item, index) => {
+        const scheduleItem = document.createElement('div');
+        scheduleItem.className = 'schedule-item';
+        scheduleItem.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8f9fa; border-radius: 8px; margin-bottom: 0.5rem;';
+        scheduleItem.setAttribute('data-id', item.id);
+        
+        scheduleItem.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
+                <span style="color: #7f8c8d; font-size: 0.9rem;">${index + 1}.</span>
+                <strong>${item.activity_name}</strong>
+                <span style="color: #7f8c8d; font-size: 0.9rem;">(${item.duration_minutes} min)</span>
+            </div>
+            <button class="btn btn-danger btn-sm" onclick="removeFromScheduleInModal(${item.id})" style="padding: 0.25rem 0.5rem;">
+                <i class="fas fa-times"></i>
+            </button>
+        `;
+        scheduleList.appendChild(scheduleItem);
+    });
 }
 
 function editProgram(programId) {
@@ -324,6 +393,19 @@ function editCurrentProgram() {
     if (currentProgram) {
         showEditProgramModal();
     }
+}
+
+// Open Create Activity modal from Edit Program modal
+function showCreateActivityFromProgram() {
+    // Don't close the edit program modal - we'll return to it
+    showModal('createActivityModal');
+}
+
+// Open Add Activity to Schedule modal from Edit Program modal
+function showAddActivityFromProgram() {
+    // Populate the activity selector
+    populateActivitySelector();
+    showModal('addActivityModal');
 }
 
 function showProgramSelector() {
@@ -408,6 +490,11 @@ async function addActivityToSchedule() {
     const activityId = document.getElementById('activitySelect').value;
     const duration = parseInt(document.getElementById('scheduleActivityDuration').value);
     
+    if (!activityId) {
+        showAlert('Please select an activity', 'error');
+        return;
+    }
+    
     try {
         const response = await fetch(`/api/programs/${currentProgram.id}/schedule`, {
             method: 'POST',
@@ -418,7 +505,15 @@ async function addActivityToSchedule() {
         if (response.ok) {
             closeModal('addActivityModal');
             await loadProgram(currentProgram.id);
-            showAlert('Activity added to schedule');
+            
+            // If edit program modal is open, refresh its schedule list
+            const editProgramModal = document.getElementById('editProgramModal');
+            if (editProgramModal && editProgramModal.style.display === 'block') {
+                displayEditProgramSchedule();
+                showAlert('Activity added to schedule!');
+            } else {
+                showAlert('Activity added to schedule');
+            }
         } else {
             const result = await response.json();
             showAlert(result.error || 'Error adding activity to schedule', 'error');
@@ -442,6 +537,31 @@ async function removeFromSchedule(scheduleId) {
         if (response.ok) {
             await loadProgram(currentProgram.id);
             showAlert('Activity removed from schedule');
+        }
+    } catch (error) {
+        console.error('Error removing from schedule:', error);
+        showAlert('Error removing activity from schedule', 'error');
+    }
+}
+
+async function removeFromScheduleInModal(scheduleId) {
+    if (!confirm('Remove this activity from the schedule?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/programs/${currentProgram.id}/schedule/${scheduleId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            await loadProgram(currentProgram.id);
+            // Refresh the schedule list in the modal
+            displayEditProgramSchedule();
+            showAlert('Activity removed from schedule');
+        } else {
+            const result = await response.json();
+            showAlert(result.error || 'Error removing activity', 'error');
         }
     } catch (error) {
         console.error('Error removing from schedule:', error);
@@ -518,7 +638,7 @@ async function createActivity(event) {
             document.getElementById('activityDuration').value = '5';
             document.getElementById('activityDescription').value = '';
             await loadActivities();
-            showAlert('Activity created successfully');
+            showAlert('Activity created successfully! You can now add it to the schedule.');
         } else {
             showAlert(result.error || 'Error creating activity', 'error');
         }
@@ -533,8 +653,17 @@ function showCreateActivityModal() {
 }
 
 function populateActivitySelect() {
+    populateActivitySelector();
+}
+
+function populateActivitySelector() {
     const activitySelect = document.getElementById('activitySelect');
     activitySelect.innerHTML = '';
+    
+    if (activities.length === 0) {
+        activitySelect.innerHTML = '<option value="">No activities available - create one first</option>';
+        return;
+    }
     
     activities.forEach(activity => {
         const option = document.createElement('option');
@@ -542,6 +671,19 @@ function populateActivitySelect() {
         option.textContent = `${activity.name} (${activity.default_duration}min default)`;
         activitySelect.appendChild(option);
     });
+    
+    // Auto-populate duration with first activity's default
+    if (activities.length > 0) {
+        document.getElementById('scheduleActivityDuration').value = activities[0].default_duration;
+        
+        // Update duration when selection changes
+        activitySelect.addEventListener('change', function() {
+            const selectedActivity = activities.find(a => a.id == this.value);
+            if (selectedActivity) {
+                document.getElementById('scheduleActivityDuration').value = selectedActivity.default_duration;
+            }
+        });
+    }
 }
 
 // Placeholder function for activity editing
