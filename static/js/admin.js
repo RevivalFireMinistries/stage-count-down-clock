@@ -905,6 +905,61 @@ async function reorderLiveSchedule(scheduleOrder) {
 
 async function startTimerStatusUpdates() {
     setInterval(updateTimerStatus, 1000);
+    setInterval(updateAutoStartStatus, 10000); // Update every 10 seconds
+    updateAutoStartStatus(); // Initial call
+}
+
+async function updateAutoStartStatus() {
+    try {
+        const response = await fetch('/api/next_autostart');
+        const data = await response.json();
+        
+        const autoStartCard = document.getElementById('autoStartCard');
+        const autoStartMessage = document.getElementById('autoStartMessage');
+        const autoStartCountdown = document.getElementById('autoStartCountdown');
+        
+        if (data.has_autostart && !data.is_future_day) {
+            // Show the auto-start card
+            autoStartCard.style.display = 'block';
+            
+            // Update message
+            autoStartMessage.textContent = `"${data.program_name}" will start automatically at ${data.scheduled_time} (${data.day_of_week})`;
+            
+            // Update countdown
+            if (data.minutes_until !== undefined) {
+                if (data.minutes_until <= 0) {
+                    autoStartCountdown.textContent = 'Starting now...';
+                    autoStartCountdown.style.color = '#27ae60';
+                } else if (data.minutes_until <= 5) {
+                    autoStartCountdown.textContent = `⏱️ Starting in ${data.minutes_until} minute${data.minutes_until !== 1 ? 's' : ''}!`;
+                    autoStartCountdown.style.color = '#e74c3c';
+                } else if (data.minutes_until <= 15) {
+                    autoStartCountdown.textContent = `Starting in ${data.time_display}`;
+                    autoStartCountdown.style.color = '#f39c12';
+                } else {
+                    autoStartCountdown.textContent = `Starting in ${data.time_display}`;
+                    autoStartCountdown.style.color = '#3498db';
+                }
+            } else {
+                autoStartCountdown.textContent = '';
+            }
+        } else if (data.has_autostart && data.is_future_day) {
+            // Show info about future program
+            autoStartCard.style.display = 'block';
+            autoStartMessage.textContent = `Next auto-start: "${data.program_name}" on ${data.day_of_week} at ${data.scheduled_time}`;
+            autoStartCountdown.textContent = '';
+        } else {
+            // Hide the auto-start card
+            autoStartCard.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error updating auto-start status:', error);
+        // Hide card on error
+        const autoStartCard = document.getElementById('autoStartCard');
+        if (autoStartCard) {
+            autoStartCard.style.display = 'none';
+        }
+    }
 }
 
 async function updateTimerStatus() {

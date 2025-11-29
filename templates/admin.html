@@ -24,6 +24,28 @@
         
         <!-- HOME TAB -->
         <div class="tab-content active" id="homeTab">
+            <!-- Auto-Start Notification (shown when program is scheduled) -->
+            <div class="card" id="autoStartCard" style="display: none; border-left: 4px solid #3498db; background: #e3f2fd;">
+                <div class="card-body" style="padding: 1rem;">
+                    <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="font-size: 2rem; color: #3498db;">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.25rem 0; color: #2c3e50;">
+                                <i class="fas fa-calendar-check"></i> Auto-Start Scheduled
+                            </h4>
+                            <p id="autoStartMessage" style="margin: 0; color: #34495e; font-size: 0.95rem;">
+                                Loading...
+                            </p>
+                            <p id="autoStartCountdown" style="margin: 0.5rem 0 0 0; font-weight: bold; color: #3498db; font-size: 1.1rem;">
+                                <!-- Countdown will appear here -->
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Timer Status Card -->
             <div class="status-card">
                 <div class="status-header">

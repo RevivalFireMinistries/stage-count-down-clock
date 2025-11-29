@@ -74,6 +74,66 @@ def update_timer_display():
 timer_thread = threading.Thread(target=update_timer_display, daemon=True)
 timer_thread.start()
 
+# Auto-start checker thread
+def auto_start_checker():
+    """Background thread that continuously checks for programs to auto-start"""
+    last_check_minute = None
+    
+    while True:
+        try:
+            now = datetime.now()
+            current_minute = (now.hour, now.minute)
+            
+            # Only check once per minute to avoid duplicate starts
+            if current_minute != last_check_minute:
+                last_check_minute = current_minute
+                
+                conn = init_database()
+                c = conn.cursor()
+                
+                # Get current day of week
+                current_day = now.strftime('%A')
+                current_time = now.strftime('%H:%M')
+                
+                # Check if there's already a program running OR if manual override is active
+                c.execute('SELECT is_running, manual_override FROM current_state WHERE id = 1')
+                result = c.fetchone()
+                
+                if not result or (not result[0] and not result[1]):
+                    # Not running and no manual override - check for auto-start programs
+                    c.execute('''
+                        SELECT id, name, scheduled_start_time 
+                        FROM programs 
+                        WHERE day_of_week = ? AND auto_start = TRUE AND scheduled_start_time = ?
+                        LIMIT 1
+                    ''', (current_day, current_time))
+                    
+                    program = c.fetchone()
+                    
+                    if program:
+                        program_id, program_name, scheduled_start_time = program
+                        print(f"[AUTO-START] Starting program: {program_name} at {scheduled_start_time}")
+                        
+                        try:
+                            # Start the program immediately (it's time!)
+                            start_program_smart_internal(program_id)
+                            print(f"[AUTO-START] Successfully started program: {program_name}")
+                        except Exception as e:
+                            print(f"[AUTO-START] Error starting program {program_name}: {e}")
+                
+                conn.close()
+                
+        except Exception as e:
+            print(f"[AUTO-START] Error in auto-start checker: {e}")
+        
+        # Check every 30 seconds (will only trigger once per minute due to last_check_minute)
+        time.sleep(30)
+
+# Start the auto-start checker thread
+auto_start_thread = threading.Thread(target=auto_start_checker, daemon=True)
+auto_start_thread.start()
+print("Auto-start checker thread started")
+
 # Helper functions for smart start
 def calculate_current_activity(program_id):
     """Calculate which activity should be current based on scheduled start time"""
@@ -904,6 +964,103 @@ def reorder_schedule(program_id):
         conn.rollback()
         conn.close()
         return jsonify({'error': f'Error reordering schedule: {str(e)}'}), 500
+
+@app.route('/api/next_autostart')
+def next_autostart():
+    """Get information about the next scheduled auto-start program"""
+    try:
+        conn = init_database()
+        c = conn.cursor()
+        
+        # Get current day and time
+        now = datetime.now()
+        current_day = now.strftime('%A')
+        current_time = now.strftime('%H:%M')
+        
+        # Check if timer is already running
+        c.execute('SELECT is_running FROM current_state WHERE id = 1')
+        result = c.fetchone()
+        is_running = result[0] if result else False
+        
+        if is_running:
+            conn.close()
+            return jsonify({'has_autostart': False, 'reason': 'Program already running'})
+        
+        # Find next auto-start program for today
+        c.execute('''
+            SELECT id, name, scheduled_start_time, day_of_week
+            FROM programs 
+            WHERE day_of_week = ? AND auto_start = TRUE AND scheduled_start_time > ?
+            ORDER BY scheduled_start_time
+            LIMIT 1
+        ''', (current_day, current_time))
+        
+        program = c.fetchone()
+        
+        if program:
+            program_id, name, scheduled_time, day = program
+            
+            # Calculate time until start
+            try:
+                scheduled_hour, scheduled_minute = map(int, scheduled_time.split(':'))
+                scheduled_datetime = now.replace(hour=scheduled_hour, minute=scheduled_minute, second=0, microsecond=0)
+                time_until = scheduled_datetime - now
+                
+                minutes_until = int(time_until.total_seconds() / 60)
+                hours_until = minutes_until // 60
+                mins_remaining = minutes_until % 60
+                
+                conn.close()
+                return jsonify({
+                    'has_autostart': True,
+                    'program_id': program_id,
+                    'program_name': name,
+                    'scheduled_time': scheduled_time,
+                    'day_of_week': day,
+                    'minutes_until': minutes_until,
+                    'time_display': f"{hours_until}h {mins_remaining}m" if hours_until > 0 else f"{mins_remaining} minutes"
+                })
+            except Exception as e:
+                print(f"Error calculating time until start: {e}")
+        
+        # If no program today, check for programs on other days
+        c.execute('''
+            SELECT id, name, scheduled_start_time, day_of_week
+            FROM programs 
+            WHERE auto_start = TRUE
+            ORDER BY 
+                CASE day_of_week
+                    WHEN 'Monday' THEN 1
+                    WHEN 'Tuesday' THEN 2
+                    WHEN 'Wednesday' THEN 3
+                    WHEN 'Thursday' THEN 4
+                    WHEN 'Friday' THEN 5
+                    WHEN 'Saturday' THEN 6
+                    WHEN 'Sunday' THEN 7
+                END,
+                scheduled_start_time
+            LIMIT 1
+        ''')
+        
+        program = c.fetchone()
+        conn.close()
+        
+        if program:
+            program_id, name, scheduled_time, day = program
+            return jsonify({
+                'has_autostart': True,
+                'program_id': program_id,
+                'program_name': name,
+                'scheduled_time': scheduled_time,
+                'day_of_week': day,
+                'is_future_day': True
+            })
+        
+        return jsonify({'has_autostart': False, 'reason': 'No auto-start programs configured'})
+        
+    except Exception as e:
+        print(f"Error getting next autostart: {e}")
+        return jsonify({'has_autostart': False, 'error': str(e)}), 500
 
 @app.route('/api/timer_status')
 def timer_status():
