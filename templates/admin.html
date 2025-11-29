@@ -119,6 +119,69 @@
                     <div id="liveScheduleList"></div>
                 </div>
             </div>
+            
+            <!-- Stage Message Card -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-bullhorn"></i> Send Message to Stage</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body open">
+                    <p class="help-text"><i class="fas fa-info-circle"></i> Display a message on the kiosk screen</p>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label for="stageMessageInput" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            <i class="fas fa-comment"></i> Message:
+                        </label>
+                        <textarea 
+                            id="stageMessageInput" 
+                            placeholder="Enter your message here..."
+                            style="width: 100%; min-height: 100px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; font-family: inherit; resize: vertical;"
+                            maxlength="200"
+                        ></textarea>
+                        <div style="text-align: right; font-size: 0.85rem; color: #7f8c8d; margin-top: 0.25rem;">
+                            <span id="messageCharCount">0</span>/200 characters
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 1rem;">
+                        <label for="messageDuration" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            <i class="fas fa-clock"></i> Display Duration:
+                        </label>
+                        <div style="display: flex; gap: 0.75rem; align-items: center;">
+                            <input 
+                                type="range" 
+                                id="messageDuration" 
+                                min="10" 
+                                max="300" 
+                                value="60" 
+                                step="10"
+                                style="flex: 1;"
+                            />
+                            <span id="durationDisplay" style="font-weight: 700; font-size: 1.1rem; min-width: 80px; color: #3498db;">
+                                1:00
+                            </span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #7f8c8d; margin-top: 0.25rem;">
+                            <span>10 seconds</span>
+                            <span>5 minutes</span>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn btn-primary" onclick="sendStageMessage()" style="flex: 1;">
+                            <i class="fas fa-paper-plane"></i> Send to Stage
+                        </button>
+                        <button class="btn btn-danger" onclick="clearStageMessage()">
+                            <i class="fas fa-times"></i> Clear
+                        </button>
+                    </div>
+                    
+                    <div id="messageStatus" style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
+                        <!-- Status messages will appear here -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- PROGRAMS TAB -->

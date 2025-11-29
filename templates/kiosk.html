@@ -194,6 +194,157 @@
             }
         }
         
+        /* Stage Message Overlay */
+        .stage-message-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            z-index: 2000;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 5vh;
+            animation: slideInDown 0.5s ease-out;
+        }
+        
+        .stage-message-overlay.show {
+            display: flex;
+        }
+        
+        @keyframes slideInDown {
+            from {
+                transform: translateY(-100%);
+            }
+            to {
+                transform: translateY(0);
+            }
+        }
+        
+        @keyframes slideOutUp {
+            from {
+                transform: translateY(0);
+            }
+            to {
+                transform: translateY(-100%);
+            }
+        }
+        
+        .stage-message-overlay.hiding {
+            animation: slideOutUp 0.5s ease-in forwards;
+        }
+        
+        .message-icon {
+            font-size: 15vh;
+            margin-bottom: 3vh;
+            animation: bounce 2s infinite;
+            filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5));
+        }
+        
+        @keyframes bounce {
+            0%, 100% {
+                transform: translateY(0);
+            }
+            50% {
+                transform: translateY(-2vh);
+            }
+        }
+        
+        .message-content {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border-radius: 3vh;
+            padding: 5vh 8vh;
+            max-width: 90vw;
+            text-align: center;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+        
+        .message-title {
+            font-size: 4vh;
+            font-weight: 700;
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            margin-bottom: 3vh;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .message-text {
+            font-size: 8vh;
+            font-weight: 900;
+            line-height: 1.3;
+            color: #ffffff;
+            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            word-wrap: break-word;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        
+        .message-timer {
+            margin-top: 4vh;
+            font-size: 3vh;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 1vh;
+        }
+        
+        .message-timer-bar {
+            width: 30vw;
+            height: 1vh;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 1vh;
+            overflow: hidden;
+            margin-top: 2vh;
+        }
+        
+        .message-timer-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+            transition: width 1s linear;
+            border-radius: 1vh;
+        }
+        
+        /* Minimized timer corner display */
+        .minimized-timer {
+            display: none;
+            position: fixed;
+            bottom: 3vh;
+            right: 3vh;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            padding: 2vh 3vh;
+            border-radius: 2vh;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            z-index: 2001;
+        }
+        
+        .minimized-timer.show {
+            display: block;
+        }
+        
+        .minimized-activity {
+            font-size: 2vh;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 1vh;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+        
+        .minimized-time {
+            font-size: 5vh;
+            font-weight: 900;
+            color: #ffffff;
+            font-family: 'Poppins', monospace;
+        }
+        
         /* Flip Card Style */
         .flip-card {
             position: relative;
@@ -526,6 +677,28 @@
         <div class="end-text">THE END</div>
         <div class="end-subtext">Program Complete</div>
     </div>
+    
+    <!-- Stage Message Overlay -->
+    <div class="stage-message-overlay" id="stageMessageOverlay">
+        <div class="message-icon">📢</div>
+        <div class="message-content">
+            <div class="message-title">Message from Control</div>
+            <div class="message-text" id="stageMessageText">Your message here</div>
+            <div class="message-timer">
+                <i class="fas fa-clock"></i>
+                <span id="messageTimeRemaining">0:00</span>
+            </div>
+            <div class="message-timer-bar">
+                <div class="message-timer-fill" id="messageTimerFill"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Minimized Timer (shows when message is displayed) -->
+    <div class="minimized-timer" id="minimizedTimer">
+        <div class="minimized-activity" id="minimizedActivity">WORSHIP</div>
+        <div class="minimized-time" id="minimizedTime">00:00</div>
+    </div>
 
     <script>
         let waitingForStart = false;
@@ -534,6 +707,78 @@
         let showingEndScreen = false;
         let endScreenTimer = null;
         let totalProgramSeconds = 0;
+        let messageEndTime = null;
+        let messageCheckInterval = null;
+        
+        // Check for active stage message
+        function checkStageMessage() {
+            fetch('/api/stage_message')
+                .then(response => response.json())
+                .then(data => {
+                    const overlay = document.getElementById('stageMessageOverlay');
+                    const minimizedTimer = document.getElementById('minimizedTimer');
+                    
+                    if (data.has_message && data.message && !data.expired) {
+                        // Show message overlay
+                        if (!overlay.classList.contains('show')) {
+                            overlay.classList.remove('hiding');
+                            overlay.classList.add('show');
+                            minimizedTimer.classList.add('show');
+                        }
+                        
+                        // Update message text
+                        document.getElementById('stageMessageText').textContent = data.message;
+                        
+                        // Update minimized timer with current activity
+                        fetch('/api/timer_status')
+                            .then(r => r.json())
+                            .then(timerData => {
+                                document.getElementById('minimizedActivity').textContent = timerData.current_activity || 'READY';
+                                document.getElementById('minimizedTime').textContent = timerData.time_remaining || '00:00';
+                            });
+                        
+                        // Calculate time remaining for message
+                        const now = new Date();
+                        const endTime = new Date(data.end_time);
+                        const totalDuration = data.duration_seconds * 1000;
+                        const timeRemaining = Math.max(0, endTime - now);
+                        const seconds = Math.floor(timeRemaining / 1000);
+                        const minutes = Math.floor(seconds / 60);
+                        const secs = seconds % 60;
+                        
+                        document.getElementById('messageTimeRemaining').textContent = 
+                            `${minutes}:${secs.toString().padStart(2, '0')}`;
+                        
+                        // Update progress bar
+                        const percentage = (timeRemaining / totalDuration) * 100;
+                        document.getElementById('messageTimerFill').style.width = percentage + '%';
+                        
+                        // Auto-hide when expired
+                        if (timeRemaining <= 0) {
+                            hideStageMessage();
+                        }
+                    } else {
+                        // Hide message overlay
+                        hideStageMessage();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking stage message:', error);
+                });
+        }
+        
+        function hideStageMessage() {
+            const overlay = document.getElementById('stageMessageOverlay');
+            const minimizedTimer = document.getElementById('minimizedTimer');
+            
+            if (overlay.classList.contains('show')) {
+                overlay.classList.add('hiding');
+                setTimeout(() => {
+                    overlay.classList.remove('show', 'hiding');
+                }, 500);
+                minimizedTimer.classList.remove('show');
+            }
+        }
         
         function updateCurrentTime() {
             const now = new Date();
@@ -820,11 +1065,16 @@
         updateDisplay();
         setInterval(updateDisplay, 1000);
         
+        // Check for stage messages immediately and every 2 seconds
+        checkStageMessage();
+        setInterval(checkStageMessage, 2000);
+        
         // Handle visibility change
         document.addEventListener('visibilitychange', function() {
             if (!document.hidden) {
                 updateCurrentTime();
                 updateDisplay();
+                checkStageMessage();
             }
         });
     </script>
