@@ -460,7 +460,7 @@ def start_program_smart_internal(program_id):
 # Routes - NOW they can use the @app.route decorator
 @app.route('/')
 def kiosk_display():
-    return render_template('')
+    return render_template('kiosk.html')
 
 @app.route('/admin')
 def admin_portal():
