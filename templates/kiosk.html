@@ -939,251 +939,244 @@
             const endOverlay = document.getElementById('endOverlay');
             const progressBar = document.getElementById('progressBar');
             const percentageDisplay = document.getElementById('percentageDisplay');
+            
+            // Get all elements that need warning classes
+            const hoursCard = document.getElementById('hoursCard');
+            const minutesCard = document.getElementById('minutesCard');
+            const secondsCard = document.getElementById('secondsCard');
+            const hoursNum = document.getElementById('hours');
+            const minutesNum = document.getElementById('minutes');
+            const secondsNum = document.getElementById('seconds');
+            const colon1 = document.getElementById('colon1');
+            const colon2 = document.getElementById('colon2');
+            
+            // Check if we're in waiting mode (only if not stopped)
+            if (data.waiting_for_start && !data.is_running) {
+                waitingForStart = true;
+                scheduledStartTime = data.scheduled_start_time || '';
+                waitingProgramName = data.waiting_program_name || '';
+                
+                // Show waiting view, hide clock
+                clockView.classList.add('hidden');
+                clockView.classList.remove('secondary');
+                normalView.style.display = 'none';
+                waitingView.classList.add('active');
+                
+                document.getElementById('waitingProgramName').textContent = waitingProgramName;
+                document.getElementById('waitingTime').textContent = scheduledStartTime;
+                
+                statusBadge.textContent = 'STARTING SOON';
+                statusBadge.className = 'status-badge status-waiting';
+                
+                // Hide overlays
+                endOverlay.style.display = 'none';
+                progressBar.style.width = '100%';
+                progressBar.className = 'progress-bar';
+                percentageDisplay.textContent = '100%';
+                percentageDisplay.className = 'percentage-display';
+                showingEndScreen = false;
+                if (endScreenTimer) clearTimeout(endScreenTimer);
+                
+                return;
+            } else {
+                // Clear waiting state
+                waitingForStart = false;
+                scheduledStartTime = '';
+                waitingProgramName = '';
+                waitingView.classList.remove('active');
+            }
+            
+            // Determine if we should show clock or countdown
+            if (data.is_running) {
+                // RUNNING - Show countdown as main, clock as secondary
+                clockView.classList.remove('hidden');
+                clockView.classList.add('secondary');
+                normalView.style.display = 'flex';
+            } else {
+                // STOPPED - Show clock as main, hide countdown
+                clockView.classList.remove('hidden');
+                clockView.classList.remove('secondary');
+                normalView.style.display = 'none';
+            }
+            
+            // Update activity name
+            document.getElementById('activityName').textContent = data.current_activity || 'READY';
+            
+            // Parse time remaining
+            let timeText = data.time_remaining || '00:00:00';
+            let totalSeconds = 0;
+            
+            if (timeText && timeText.includes(':')) {
+                const parts = timeText.split(':');
+                if (parts.length === 3) {
+                    const hours = parseInt(parts[0]) || 0;
+                    const minutes = parseInt(parts[1]) || 0;
+                    const seconds = parseInt(parts[2]) || 0;
+                    totalSeconds = hours * 3600 + minutes * 60 + seconds;
                     
-                    // Get all elements that need warning classes
-                    const hoursCard = document.getElementById('hoursCard');
-                    const minutesCard = document.getElementById('minutesCard');
-                    const secondsCard = document.getElementById('secondsCard');
-                    const hoursNum = document.getElementById('hours');
-                    const minutesNum = document.getElementById('minutes');
-                    const secondsNum = document.getElementById('seconds');
-                    const colon1 = document.getElementById('colon1');
-                    const colon2 = document.getElementById('colon2');
+                    // Update display
+                    document.getElementById('hours').textContent = parts[0].padStart(2, '0');
+                    document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
+                    document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
+                } else if (parts.length === 2) {
+                    const minutes = parseInt(parts[0]) || 0;
+                    const seconds = parseInt(parts[1]) || 0;
+                    totalSeconds = minutes * 60 + seconds;
                     
-                    // Check if we're in waiting mode (only if not stopped)
-                    if (data.waiting_for_start && !data.is_running) {
-                        waitingForStart = true;
-                        scheduledStartTime = data.scheduled_start_time || '';
-                        waitingProgramName = data.waiting_program_name || '';
-                        
-                        // Show waiting view, hide clock
-                        clockView.classList.add('hidden');
-                        clockView.classList.remove('secondary');
-                        normalView.style.display = 'none';
-                        waitingView.classList.add('active');
-                        
-                        document.getElementById('waitingProgramName').textContent = waitingProgramName;
-                        document.getElementById('waitingTime').textContent = scheduledStartTime;
-                        
-                        statusBadge.textContent = 'STARTING SOON';
-                        statusBadge.className = 'status-badge status-waiting';
-                        
-                        // Hide overlays
-                        endOverlay.style.display = 'none';
-                        progressBar.style.width = '100%';
-                        progressBar.className = 'progress-bar';
-                        percentageDisplay.textContent = '100%';
-                        percentageDisplay.className = 'percentage-display';
-                        showingEndScreen = false;
-                        if (endScreenTimer) clearTimeout(endScreenTimer);
-                        
-                        return;
-                    } else {
-                        // Clear waiting state
-                        waitingForStart = false;
-                        scheduledStartTime = '';
-                        waitingProgramName = '';
-                        waitingView.classList.remove('active');
+                    document.getElementById('hours').textContent = '00';
+                    document.getElementById('minutes').textContent = parts[0].padStart(2, '0');
+                    document.getElementById('seconds').textContent = parts[1].padStart(2, '0');
+                }
+            }
+            
+            // TIME UP logic - show instead of countdown in final minutes
+            const countdownContainer = document.getElementById('countdownContainer');
+            const timeUpMessage = document.getElementById('timeUpMessage');
+            
+            // Set total program seconds on first run or when activity changes
+            if (data.is_running && !data.is_paused) {
+                if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
+                    totalProgramSeconds = totalSeconds;
+                }
+            }
+            
+            // Determine if we should show TIME UP based on:
+            // - Activities >= 30 minutes: show TIME UP in last 2 minutes (120 seconds)
+            // - Activities < 30 minutes: show TIME UP in last 1 minute (60 seconds)
+            let showTimeUp = false;
+            if (data.is_running && !data.is_paused && totalProgramSeconds > 0) {
+                const activityDuration = totalProgramSeconds;
+                
+                if (activityDuration >= 1800) {
+                    // 30+ minutes: show TIME UP in last 2 minutes
+                    showTimeUp = totalSeconds <= 120 && totalSeconds > 0;
+                } else {
+                    // < 30 minutes: show TIME UP in last 1 minute
+                    showTimeUp = totalSeconds <= 60 && totalSeconds > 0;
+                }
+            }
+            
+            if (showTimeUp) {
+                countdownContainer.classList.add('hide');
+                timeUpMessage.classList.add('show');
+            } else {
+                countdownContainer.classList.remove('hide');
+                timeUpMessage.classList.remove('show');
+            }
+            
+            // Handle different states
+            if (data.is_running) {
+                if (data.is_paused) {
+                    statusBadge.textContent = 'PAUSED';
+                    statusBadge.className = 'status-badge status-paused';
+                } else {
+                    statusBadge.textContent = 'LIVE';
+                    statusBadge.className = 'status-badge status-running';
+                    
+                    // Set total program seconds on first run or when starting
+                    if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
+                        totalProgramSeconds = totalSeconds;
                     }
                     
-                    // Determine if we should show clock or countdown
-                    if (data.is_running) {
-                        // RUNNING - Show countdown as main, clock as secondary
-                        clockView.classList.remove('hidden');
-                        clockView.classList.add('secondary');
-                        normalView.style.display = 'flex';
-                    } else {
-                        // STOPPED - Show clock as main, hide countdown
-                        clockView.classList.remove('hidden');
-                        clockView.classList.remove('secondary');
-                        normalView.style.display = 'none';
-                    }
+                    // Calculate percentage remaining
+                    let percentage = totalProgramSeconds > 0 ? (totalSeconds / totalProgramSeconds) * 100 : 0;
+                    percentage = Math.max(0, Math.min(100, percentage));
                     
-                    // Update activity name
-                    document.getElementById('activityName').textContent = data.current_activity || 'READY';
+                    // Update progress bar
+                    progressBar.style.width = percentage + '%';
+                    percentageDisplay.textContent = Math.round(percentage) + '%';
                     
-                    // Parse time remaining
-                    let timeText = data.time_remaining || '00:00:00';
-                    let totalSeconds = 0;
-                    
-                    if (timeText && timeText.includes(':')) {
-                        const parts = timeText.split(':');
-                        if (parts.length === 3) {
-                            const hours = parseInt(parts[0]) || 0;
-                            const minutes = parseInt(parts[1]) || 0;
-                            const seconds = parseInt(parts[2]) || 0;
-                            totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                    // Check for end of program (time = 0 and activity exists)
+                    if (totalSeconds <= 0 && data.current_activity && data.current_activity !== 'READY') {
+                        // Show "THE END" screen
+                        if (!showingEndScreen) {
+                            showingEndScreen = true;
+                            endOverlay.style.display = 'flex';
+                            totalProgramSeconds = 0; // Reset for next program
                             
-                            // Update display
-                            document.getElementById('hours').textContent = parts[0].padStart(2, '0');
-                            document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
-                            document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
-                        } else if (parts.length === 2) {
-                            const minutes = parseInt(parts[0]) || 0;
-                            const seconds = parseInt(parts[1]) || 0;
-                            totalSeconds = minutes * 60 + seconds;
-                            
-                            document.getElementById('hours').textContent = '00';
-                            document.getElementById('minutes').textContent = parts[0].padStart(2, '0');
-                            document.getElementById('seconds').textContent = parts[1].padStart(2, '0');
-                        }
-                    }
-                    
-                    // TIME UP logic - show instead of countdown in final minutes
-                    const countdownContainer = document.getElementById('countdownContainer');
-                    const timeUpMessage = document.getElementById('timeUpMessage');
-                    
-                    // Set total program seconds on first run or when activity changes
-                    if (data.is_running && !data.is_paused) {
-                        if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
-                            totalProgramSeconds = totalSeconds;
-                        }
-                    }
-                    
-                    // Determine if we should show TIME UP based on:
-                    // - Activities >= 30 minutes: show TIME UP in last 2 minutes (120 seconds)
-                    // - Activities < 30 minutes: show TIME UP in last 1 minute (60 seconds)
-                    let showTimeUp = false;
-                    if (data.is_running && !data.is_paused && totalProgramSeconds > 0) {
-                        const activityDuration = totalProgramSeconds;
-                        
-                        if (activityDuration >= 1800) {
-                            // 30+ minutes: show TIME UP in last 2 minutes
-                            showTimeUp = totalSeconds <= 120 && totalSeconds > 0;
-                        } else {
-                            // < 30 minutes: show TIME UP in last 1 minute
-                            showTimeUp = totalSeconds <= 60 && totalSeconds > 0;
-                        }
-                    }
-                    
-                    if (showTimeUp) {
-                        countdownContainer.classList.add('hide');
-                        timeUpMessage.classList.add('show');
-                    } else {
-                        countdownContainer.classList.remove('hide');
-                        timeUpMessage.classList.remove('show');
-                    }
-                    
-                    // Handle different states
-                    if (data.is_running) {
-                        if (data.is_paused) {
-                            statusBadge.textContent = 'PAUSED';
-                            statusBadge.className = 'status-badge status-paused';
-                        } else {
-                            statusBadge.textContent = 'LIVE';
-                            statusBadge.className = 'status-badge status-running';
-                            
-                            // Set total program seconds on first run or when starting
-                            if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
-                                totalProgramSeconds = totalSeconds;
-                            }
-                            
-                            // Calculate percentage remaining
-                            let percentage = totalProgramSeconds > 0 ? (totalSeconds / totalProgramSeconds) * 100 : 0;
-                            percentage = Math.max(0, Math.min(100, percentage));
-                            
-                            // Update progress bar
-                            progressBar.style.width = percentage + '%';
-                            percentageDisplay.textContent = Math.round(percentage) + '%';
-                            
-                            // Check for end of program (time = 0 and activity exists)
-                            if (totalSeconds <= 0 && data.current_activity && data.current_activity !== 'READY') {
-                                // Show "THE END" screen
-                                if (!showingEndScreen) {
-                                    showingEndScreen = true;
-                                    endOverlay.style.display = 'flex';
-                                    totalProgramSeconds = 0; // Reset for next program
-                                    
-                                    // Auto-hide after 5 minutes (300 seconds)
-                                    if (endScreenTimer) clearTimeout(endScreenTimer);
-                                    endScreenTimer = setTimeout(() => {
-                                        showingEndScreen = false;
-                                        endOverlay.style.display = 'none';
-                                    }, 300000); // 5 minutes
-                                }
-                                return;
-                            } else {
-                                // Clear end screen if showing
+                            // Auto-hide after 5 minutes (300 seconds)
+                            if (endScreenTimer) clearTimeout(endScreenTimer);
+                            endScreenTimer = setTimeout(() => {
                                 showingEndScreen = false;
                                 endOverlay.style.display = 'none';
-                                if (endScreenTimer) clearTimeout(endScreenTimer);
-                            }
-                            
-                            // Apply warning classes based on percentage
-                            // Clear all warning classes first
-                            [hoursCard, minutesCard, secondsCard].forEach(card => {
-                                card.classList.remove('warning-10', 'warning-final');
-                            });
-                            [hoursNum, minutesNum, secondsNum].forEach(num => {
-                                num.classList.remove('warning-10', 'warning-final');
-                            });
-                            [colon1, colon2].forEach(col => {
-                                col.classList.remove('warning-10', 'warning-final');
-                            });
-                            progressBar.classList.remove('warning-10', 'warning-final');
-                            percentageDisplay.classList.remove('warning-10', 'warning-final');
-                            
-                            // Apply appropriate warning level
-                            if (totalSeconds <= 60) {
-                                // FINAL MINUTE - Red
-                                [hoursCard, minutesCard, secondsCard].forEach(card => {
-                                    card.classList.add('warning-final');
-                                });
-                                [hoursNum, minutesNum, secondsNum].forEach(num => {
-                                    num.classList.add('warning-final');
-                                });
-                                [colon1, colon2].forEach(col => {
-                                    col.classList.add('warning-final');
-                                });
-                                progressBar.classList.add('warning-final');
-                                percentageDisplay.classList.add('warning-final');
-                            } else if (percentage <= 10) {
-                                // 10% REMAINING - Orange/Yellow
-                                [hoursCard, minutesCard, secondsCard].forEach(card => {
-                                    card.classList.add('warning-10');
-                                });
-                                [hoursNum, minutesNum, secondsNum].forEach(num => {
-                                    num.classList.add('warning-10');
-                                });
-                                [colon1, colon2].forEach(col => {
-                                    col.classList.add('warning-10');
-                                });
-                                progressBar.classList.add('warning-10');
-                                percentageDisplay.classList.add('warning-10');
-                            }
+                            }, 300000); // 5 minutes
                         }
+                        return;
                     } else {
-                        statusBadge.textContent = 'STOPPED';
-                        statusBadge.className = 'status-badge status-stopped';
-                        
-                        // Clear all warnings when stopped
-                        [hoursCard, minutesCard, secondsCard].forEach(card => {
-                            card.classList.remove('warning-10', 'warning-final');
-                        });
-                        [hoursNum, minutesNum, secondsNum].forEach(num => {
-                            num.classList.remove('warning-10', 'warning-final');
-                        });
-                        [colon1, colon2].forEach(col => {
-                            col.classList.remove('warning-10', 'warning-final');
-                        });
-                        progressBar.classList.remove('warning-10', 'warning-final');
-                        percentageDisplay.classList.remove('warning-10', 'warning-final');
-                        
-                        endOverlay.style.display = 'none';
-                        showingEndScreen = false;
-                        totalProgramSeconds = 0;
-                        progressBar.style.width = '100%';
-                        percentageDisplay.textContent = '100%';
-                        if (endScreenTimer) clearTimeout(endScreenTimer);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error fetching timer status:', error);
-                    document.getElementById('activityName').textContent = 'CONNECTION ERROR';
-                    document.getElementById('statusBadge').textContent = 'OFFLINE';
-                    document.getElementById('statusBadge').className = 'status-badge status-stopped';
+                        // Clear end screen if showing
+                    showingEndScreen = false;
+                    endOverlay.style.display = 'none';
+                    if (endScreenTimer) clearTimeout(endScreenTimer);
+                }
+                
+                // Apply warning classes based on percentage
+                // Clear all warning classes first
+                [hoursCard, minutesCard, secondsCard].forEach(card => {
+                    card.classList.remove('warning-10', 'warning-final');
                 });
-        } // End of displayRegularTimer function
+                [hoursNum, minutesNum, secondsNum].forEach(num => {
+                    num.classList.remove('warning-10', 'warning-final');
+                });
+                [colon1, colon2].forEach(col => {
+                    col.classList.remove('warning-10', 'warning-final');
+                });
+                progressBar.classList.remove('warning-10', 'warning-final');
+                percentageDisplay.classList.remove('warning-10', 'warning-final');
+                
+                // Apply appropriate warning level
+                if (totalSeconds <= 60) {
+                    // FINAL MINUTE - Red
+                    [hoursCard, minutesCard, secondsCard].forEach(card => {
+                        card.classList.add('warning-final');
+                    });
+                    [hoursNum, minutesNum, secondsNum].forEach(num => {
+                        num.classList.add('warning-final');
+                    });
+                    [colon1, colon2].forEach(col => {
+                        col.classList.add('warning-final');
+                    });
+                    progressBar.classList.add('warning-final');
+                    percentageDisplay.classList.add('warning-final');
+                } else if (percentage <= 10) {
+                    // 10% REMAINING - Orange/Yellow
+                    [hoursCard, minutesCard, secondsCard].forEach(card => {
+                        card.classList.add('warning-10');
+                    });
+                    [hoursNum, minutesNum, secondsNum].forEach(num => {
+                        num.classList.add('warning-10');
+                    });
+                    [colon1, colon2].forEach(col => {
+                        col.classList.add('warning-10');
+                    });
+                    progressBar.classList.add('warning-10');
+                    percentageDisplay.classList.add('warning-10');
+                }
+            }
+        } else {
+            statusBadge.textContent = 'STOPPED';
+            statusBadge.className = 'status-badge status-stopped';
+            
+            // Clear all warnings when stopped
+            [hoursCard, minutesCard, secondsCard].forEach(card => {
+                card.classList.remove('warning-10', 'warning-final');
+            });
+            [hoursNum, minutesNum, secondsNum].forEach(num => {
+                num.classList.remove('warning-10', 'warning-final');
+            });
+            [colon1, colon2].forEach(col => {
+                col.classList.remove('warning-10', 'warning-final');
+            });
+            progressBar.classList.remove('warning-10', 'warning-final');
+            percentageDisplay.classList.remove('warning-10', 'warning-final');
+            
+            endOverlay.style.display = 'none';
+            showingEndScreen = false;
+            totalProgramSeconds = 0;
+            progressBar.style.width = '100%';
+            percentageDisplay.textContent = '100%';
+            if (endScreenTimer) clearTimeout(endScreenTimer);
+        }
+    }
         
         // Update current time immediately and every second
         updateCurrentTime();
