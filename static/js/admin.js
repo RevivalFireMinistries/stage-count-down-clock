@@ -1089,6 +1089,169 @@ function showMessageStatus(message, type) {
     }, 5000);
 }
 
+// ============================================================================
+// COUNTDOWN TIMER FUNCTIONS
+// ============================================================================
+
+function selectCountdownType(type) {
+    // Update button styles
+    const buttons = document.querySelectorAll('.countdown-type-btn');
+    buttons.forEach(btn => {
+        if (btn.dataset.type === type) {
+            btn.classList.add('active');
+            btn.style.background = '#3498db';
+            btn.style.color = 'white';
+            btn.style.borderColor = '#3498db';
+        } else {
+            btn.classList.remove('active');
+            btn.style.background = 'white';
+            btn.style.color = '#666';
+            btn.style.borderColor = '#ddd';
+        }
+    });
+    
+    // Show/hide appropriate input sections
+    const durationSection = document.getElementById('durationInputSection');
+    const targetTimeSection = document.getElementById('targetTimeInputSection');
+    const presetsSection = document.getElementById('quickPresetsSection');
+    
+    if (type === 'duration') {
+        durationSection.style.display = 'block';
+        targetTimeSection.style.display = 'none';
+        presetsSection.style.display = 'none';
+    } else {
+        durationSection.style.display = 'none';
+        targetTimeSection.style.display = 'block';
+        presetsSection.style.display = 'block';
+    }
+}
+
+function setQuickPreset(preset) {
+    const now = new Date();
+    const timeInput = document.getElementById('targetTime');
+    
+    switch(preset) {
+        case 'midnight':
+            timeInput.value = '00:00';
+            document.getElementById('countdownName').value = 'Countdown to Midnight';
+            break;
+        case 'noon':
+            timeInput.value = '12:00';
+            document.getElementById('countdownName').value = 'Countdown to Noon';
+            break;
+        case 'hour':
+            const nextHour = new Date(now);
+            nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
+            timeInput.value = `${nextHour.getHours().toString().padStart(2, '0')}:00`;
+            document.getElementById('countdownName').value = 'Countdown to Top of Hour';
+            break;
+        case 'half':
+            const nextHalf = new Date(now);
+            if (now.getMinutes() < 30) {
+                nextHalf.setMinutes(30, 0, 0);
+            } else {
+                nextHalf.setHours(nextHalf.getHours() + 1, 0, 0, 0);
+            }
+            timeInput.value = `${nextHalf.getHours().toString().padStart(2, '0')}:${nextHalf.getMinutes().toString().padStart(2, '0')}`;
+            document.getElementById('countdownName').value = 'Countdown to Half Hour';
+            break;
+    }
+}
+
+async function startCountdownTimer() {
+    const timerType = document.querySelector('.countdown-type-btn.active').dataset.type;
+    const name = document.getElementById('countdownName').value.trim() || 'Countdown';
+    
+    let payload = {
+        timer_type: timerType,
+        name: name
+    };
+    
+    if (timerType === 'duration') {
+        const minutes = parseInt(document.getElementById('countdownMinutes').value) || 0;
+        const seconds = parseInt(document.getElementById('countdownSeconds').value) || 0;
+        const totalSeconds = (minutes * 60) + seconds;
+        
+        if (totalSeconds <= 0) {
+            showCountdownStatus('Please enter a valid duration', 'error');
+            return;
+        }
+        
+        payload.duration_seconds = totalSeconds;
+    } else {
+        const targetTime = document.getElementById('targetTime').value;
+        
+        if (!targetTime) {
+            showCountdownStatus('Please select a target time', 'error');
+            return;
+        }
+        
+        payload.target_time = targetTime;
+    }
+    
+    try {
+        const response = await fetch('/api/countdown_timer', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (response.ok) {
+            const result = await response.json();
+            showCountdownStatus(`✓ Countdown timer started: ${name}`, 'success');
+            showAlert(`Countdown timer "${name}" started`, 'success');
+        } else {
+            const error = await response.json();
+            showCountdownStatus(`Error: ${error.error || 'Failed to start countdown'}`, 'error');
+        }
+    } catch (error) {
+        console.error('Error starting countdown timer:', error);
+        showCountdownStatus('Error: Failed to start countdown timer', 'error');
+    }
+}
+
+async function stopCountdownTimer() {
+    try {
+        const response = await fetch('/api/countdown_timer', {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showCountdownStatus('✓ Countdown timer stopped', 'success');
+            showAlert('Countdown timer stopped', 'info');
+        } else {
+            showCountdownStatus('Error: Failed to stop countdown', 'error');
+        }
+    } catch (error) {
+        console.error('Error stopping countdown timer:', error);
+        showCountdownStatus('Error: Failed to stop countdown timer', 'error');
+    }
+}
+
+function showCountdownStatus(message, type) {
+    const statusDiv = document.getElementById('countdownStatus');
+    
+    statusDiv.textContent = message;
+    statusDiv.style.display = 'block';
+    
+    if (type === 'success') {
+        statusDiv.style.background = '#d4edda';
+        statusDiv.style.color = '#155724';
+        statusDiv.style.border = '1px solid #c3e6cb';
+    } else if (type === 'error') {
+        statusDiv.style.background = '#f8d7da';
+        statusDiv.style.color = '#721c24';
+        statusDiv.style.border = '1px solid #f5c6cb';
+    }
+    
+    // Auto-hide after 5 seconds
+    setTimeout(() => {
+        statusDiv.style.display = 'none';
+    }, 5000);
+}
+
 // Initialize stage message event listeners when DOM is ready
 document.addEventListener('DOMContentLoaded', function() {
     const messageInput = document.getElementById('stageMessageInput');

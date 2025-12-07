@@ -22,6 +22,16 @@ current_timer = {
 }
 live_schedule_override = None  # Will store the live reordered schedule
 
+# Countdown timer state
+countdown_timer = {
+    'is_active': False,
+    'name': '',
+    'target_time': None,
+    'time_remaining': '',
+    'is_expired': False,
+    'timer_type': 'duration'
+}
+
 def init_database():
     conn = sqlite3.connect('church_timer.db')
     return conn
@@ -43,31 +53,85 @@ def get_current_state():
 
 def update_timer_display():
     while True:
-        state = get_current_state()
-        if state and state[0] and not state[1]:  # Running and not paused
-            start_time = datetime.fromisoformat(state[2])
-            duration = state[4] * 60  # Convert to seconds
-            end_time = start_time + timedelta(seconds=duration)
+        # Check countdown timer first - it takes priority
+        conn = init_database()
+        c = conn.cursor()
+        c.execute('''
+            SELECT id, name, target_time, started_at, duration_seconds, timer_type
+            FROM countdown_timers
+            WHERE is_active = TRUE
+            ORDER BY created_at DESC
+            LIMIT 1
+        ''')
+        countdown = c.fetchone()
+        conn.close()
+        
+        if countdown:
+            countdown_id, name, target_time_str, started_at_str, duration_seconds, timer_type = countdown
             now = datetime.now()
             
-            if now < end_time:
-                remaining = end_time - now
+            if timer_type == 'target_time' and target_time_str:
+                target_time = datetime.fromisoformat(target_time_str)
+            elif timer_type == 'duration' and started_at_str and duration_seconds:
+                started_at = datetime.fromisoformat(started_at_str)
+                target_time = started_at + timedelta(seconds=duration_seconds)
+            else:
+                time.sleep(1)
+                continue
+            
+            if now < target_time:
+                remaining = target_time - now
                 total_seconds = int(remaining.total_seconds())
                 
-                # Convert to hours:minutes:seconds format
                 hours = total_seconds // 3600
                 minutes = (total_seconds % 3600) // 60
                 seconds = total_seconds % 60
                 
-                # Always show hours:minutes:seconds format with leading zeros
-                current_timer['time_remaining'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
-                
-                current_timer['current_activity'] = state[3]
-                current_timer['is_running'] = True
-                current_timer['is_paused'] = False
+                countdown_timer['is_active'] = True
+                countdown_timer['name'] = name
+                countdown_timer['target_time'] = target_time.isoformat()
+                countdown_timer['time_remaining'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                countdown_timer['is_expired'] = False
+                countdown_timer['timer_type'] = timer_type
             else:
-                # Move to next item
-                move_to_next_item()
+                # Countdown expired
+                countdown_timer['is_active'] = True
+                countdown_timer['name'] = name
+                countdown_timer['target_time'] = target_time.isoformat()
+                countdown_timer['time_remaining'] = "00:00:00"
+                countdown_timer['is_expired'] = True
+                countdown_timer['timer_type'] = timer_type
+        else:
+            # No countdown timer active
+            countdown_timer['is_active'] = False
+            countdown_timer['is_expired'] = False
+            
+            # Continue with regular program timer
+            state = get_current_state()
+            if state and state[0] and not state[1]:  # Running and not paused
+                start_time = datetime.fromisoformat(state[2])
+                duration = state[4] * 60  # Convert to seconds
+                end_time = start_time + timedelta(seconds=duration)
+                now = datetime.now()
+                
+                if now < end_time:
+                    remaining = end_time - now
+                    total_seconds = int(remaining.total_seconds())
+                    
+                    # Convert to hours:minutes:seconds format
+                    hours = total_seconds // 3600
+                    minutes = (total_seconds % 3600) // 60
+                    seconds = total_seconds % 60
+                    
+                    # Always show hours:minutes:seconds format with leading zeros
+                    current_timer['time_remaining'] = f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+                    
+                    current_timer['current_activity'] = state[3]
+                    current_timer['is_running'] = True
+                    current_timer['is_paused'] = False
+                else:
+                    # Move to next item
+                    move_to_next_item()
         time.sleep(1)
 
 # Start timer thread
@@ -1171,6 +1235,113 @@ def clear_stage_message():
         
     except Exception as e:
         print(f"Error clearing stage message: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/countdown_timer', methods=['GET'])
+def get_countdown_timer():
+    """Get the current active countdown timer"""
+    return jsonify(countdown_timer)
+
+@app.route('/api/countdown_timer', methods=['POST'])
+def start_countdown_timer():
+    """Start a new countdown timer - stops any running programs"""
+    try:
+        data = request.get_json()
+        timer_type = data.get('timer_type', 'duration')
+        name = data.get('name', 'Countdown').strip()
+        
+        conn = init_database()
+        c = conn.cursor()
+        
+        # Stop any running programs
+        c.execute('''
+            UPDATE current_state 
+            SET is_running = FALSE, 
+                is_paused = FALSE,
+                current_program_id = NULL,
+                current_schedule_id = NULL,
+                manual_override = FALSE
+            WHERE id = 1
+        ''')
+        
+        # Clear any existing countdown timers
+        c.execute('UPDATE countdown_timers SET is_active = FALSE WHERE is_active = TRUE')
+        
+        # Create new countdown timer
+        now = datetime.now()
+        
+        if timer_type == 'target_time':
+            # Countdown to a specific time
+            target_time_str = data.get('target_time')
+            if not target_time_str:
+                return jsonify({'error': 'target_time is required for target_time type'}), 400
+            
+            # Parse target time - could be HH:MM or full datetime
+            if ':' in target_time_str and 'T' not in target_time_str:
+                # Just a time like "23:59"
+                hour, minute = map(int, target_time_str.split(':'))
+                target_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+                
+                # If target time is in the past, assume next day
+                if target_time <= now:
+                    target_time = target_time + timedelta(days=1)
+            else:
+                # Full ISO datetime
+                target_time = datetime.fromisoformat(target_time_str)
+            
+            c.execute('''
+                INSERT INTO countdown_timers (name, target_time, timer_type, started_at, is_active)
+                VALUES (?, ?, 'target_time', ?, TRUE)
+            ''', (name, target_time.isoformat(), now.isoformat()))
+            
+        else:  # duration type
+            duration_seconds = int(data.get('duration_seconds', 300))
+            duration_seconds = max(10, min(duration_seconds, 86400))  # 10 seconds to 24 hours
+            
+            c.execute('''
+                INSERT INTO countdown_timers (name, duration_seconds, timer_type, started_at, is_active)
+                VALUES (?, ?, 'duration', ?, TRUE)
+            ''', (name, duration_seconds, now.isoformat()))
+        
+        timer_id = c.lastrowid
+        
+        conn.commit()
+        conn.close()
+        
+        print(f"[COUNTDOWN] Started: '{name}' (type: {timer_type})")
+        
+        return jsonify({
+            'status': 'success',
+            'timer_id': timer_id,
+            'timer_type': timer_type
+        })
+        
+    except Exception as e:
+        print(f"Error starting countdown timer: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/countdown_timer', methods=['DELETE'])
+def stop_countdown_timer():
+    """Stop the active countdown timer"""
+    try:
+        conn = init_database()
+        c = conn.cursor()
+        
+        c.execute('UPDATE countdown_timers SET is_active = FALSE WHERE is_active = TRUE')
+        
+        conn.commit()
+        conn.close()
+        
+        print("[COUNTDOWN] Stopped")
+        
+        # Reset global state
+        countdown_timer['is_active'] = False
+        countdown_timer['is_expired'] = False
+        
+        return jsonify({'status': 'success'})
+        
+    except Exception as e:
+        print(f"Error stopping countdown timer: {e}")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/timer_status')

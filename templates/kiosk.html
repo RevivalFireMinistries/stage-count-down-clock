@@ -383,6 +383,30 @@
             animation: criticalPulse 1s infinite;
         }
         
+        /* Critical Flash for Countdown Timer TIME UP */
+        .time-card.critical-flash .flip-number {
+            background: #e74c3c;
+            color: #ffffff;
+            animation: criticalFlash 0.5s infinite;
+        }
+        
+        .time-card.warning-state .flip-number {
+            background: #f39c12;
+            color: #ffffff;
+            animation: warningPulse 2s infinite;
+        }
+        
+        @keyframes criticalFlash {
+            0%, 100% { 
+                background: #e74c3c;
+                box-shadow: 0 0 40px rgba(231, 76, 60, 1);
+            }
+            50% { 
+                background: #c0392b;
+                box-shadow: 0 0 80px rgba(231, 76, 60, 1);
+            }
+        }
+        
         .flip-label {
             margin-top: 2.5vh;
             font-size: 2.8vh;
@@ -798,19 +822,123 @@
         }
         
         function updateDisplay() {
-            fetch('/api/timer_status')
+            // First check if there's an active countdown timer - it takes priority
+            fetch('/api/countdown_timer')
                 .then(response => response.json())
-                .then(data => {
-                    const statusBadge = document.getElementById('statusBadge');
-                    const normalView = document.getElementById('normalView');
-                    const waitingView = document.getElementById('waitingView');
-                    const clockView = document.getElementById('clockView');
-                    const warningOverlay = document.getElementById('warningOverlay');
-                    const warningText = document.getElementById('warningText');
-                    const criticalOverlay = document.getElementById('criticalOverlay');
-                    const endOverlay = document.getElementById('endOverlay');
-                    const progressBar = document.getElementById('progressBar');
-                    const percentageDisplay = document.getElementById('percentageDisplay');
+                .then(countdownData => {
+                    if (countdownData.is_active) {
+                        // Show countdown timer view
+                        displayCountdownTimer(countdownData);
+                        return; // Skip regular timer display
+                    }
+                    
+                    // No countdown active, proceed with regular timer display
+                    fetch('/api/timer_status')
+                        .then(response => response.json())
+                        .then(data => {
+                            displayRegularTimer(data);
+                        });
+                });
+        }
+        
+        function displayCountdownTimer(countdownData) {
+            const statusBadge = document.getElementById('statusBadge');
+            const normalView = document.getElementById('normalView');
+            const waitingView = document.getElementById('waitingView');
+            const clockView = document.getElementById('clockView');
+            const endOverlay = document.getElementById('endOverlay');
+            
+            // Hide clock and waiting views
+            clockView.classList.add('hidden');
+            waitingView.classList.remove('active');
+            
+            // Show countdown
+            normalView.style.display = 'flex';
+            
+            // Update status badge
+            statusBadge.textContent = 'COUNTDOWN';
+            statusBadge.className = 'status-badge status-running';
+            
+            // Update activity name
+            document.getElementById('activityName').textContent = countdownData.name || 'COUNTDOWN';
+            
+            if (countdownData.is_expired) {
+                // Show TIME UP with flashing effect
+                document.getElementById('hours').textContent = '00';
+                document.getElementById('minutes').textContent = '00';
+                document.getElementById('seconds').textContent = '00';
+                
+                // Add flashing red effect
+                const hoursCard = document.getElementById('hoursCard');
+                const minutesCard = document.getElementById('minutesCard');
+                const secondsCard = document.getElementById('secondsCard');
+                
+                hoursCard.className = 'time-card critical-flash';
+                minutesCard.className = 'time-card critical-flash';
+                secondsCard.className = 'time-card critical-flash';
+                
+                // Show TIME UP overlay
+                endOverlay.style.display = 'flex';
+                document.getElementById('endScreenTitle').textContent = 'TIME UP!';
+                document.getElementById('endScreenSubtitle').textContent = countdownData.name || 'COUNTDOWN COMPLETE';
+                
+                // Update activity name
+                document.getElementById('activityName').textContent = '🔔 TIME UP! 🔔';
+            } else {
+                // Display remaining time
+                const timeText = countdownData.time_remaining || '00:00:00';
+                const parts = timeText.split(':');
+                
+                if (parts.length === 3) {
+                    document.getElementById('hours').textContent = parts[0].padStart(2, '0');
+                    document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
+                    document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
+                    
+                    // Parse total seconds for warnings
+                    const hours = parseInt(parts[0]) || 0;
+                    const minutes = parseInt(parts[1]) || 0;
+                    const seconds = parseInt(parts[2]) || 0;
+                    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
+                    
+                    // Apply warning effects based on remaining time
+                    const hoursCard = document.getElementById('hoursCard');
+                    const minutesCard = document.getElementById('minutesCard');
+                    const secondsCard = document.getElementById('secondsCard');
+                    
+                    if (totalSeconds <= 10) {
+                        // Critical - last 10 seconds
+                        hoursCard.className = 'time-card critical-flash';
+                        minutesCard.className = 'time-card critical-flash';
+                        secondsCard.className = 'time-card critical-flash';
+                    } else if (totalSeconds <= 60) {
+                        // Warning - last minute
+                        hoursCard.className = 'time-card warning-state';
+                        minutesCard.className = 'time-card warning-state';
+                        secondsCard.className = 'time-card warning-state';
+                    } else {
+                        // Normal
+                        hoursCard.className = 'time-card';
+                        minutesCard.className = 'time-card';
+                        secondsCard.className = 'time-card';
+                    }
+                }
+                
+                // Hide end overlay
+                endOverlay.style.display = 'none';
+            }
+        }
+        
+        function displayRegularTimer(data) {
+            const statusBadge = document.getElementById('statusBadge');
+            const normalView = document.getElementById('normalView');
+            const waitingView = document.getElementById('waitingView');
+            const clockView = document.getElementById('clockView');
+            const warningOverlay = document.getElementById('warningOverlay');
+            const warningText = document.getElementById('warningText');
+            const criticalOverlay = document.getElementById('criticalOverlay');
+            const endOverlay = document.getElementById('endOverlay');
+            const progressBar = document.getElementById('progressBar');
+            const percentageDisplay = document.getElementById('percentageDisplay');
                     
                     // Get all elements that need warning classes
                     const hoursCard = document.getElementById('hoursCard');
@@ -1055,7 +1183,7 @@
                     document.getElementById('statusBadge').textContent = 'OFFLINE';
                     document.getElementById('statusBadge').className = 'status-badge status-stopped';
                 });
-        }
+        } // End of displayRegularTimer function
         
         // Update current time immediately and every second
         updateCurrentTime();

@@ -202,6 +202,130 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Countdown Timer Card -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-stopwatch"></i> Countdown Timer</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body">
+                    <p class="help-text"><i class="fas fa-info-circle"></i> Start a countdown timer (stops running programs)</p>
+                    
+                    <!-- Timer Type Selection -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.75rem;">
+                            <i class="fas fa-tasks"></i> Timer Type:
+                        </label>
+                        <div style="display: flex; gap: 1rem;">
+                            <button 
+                                class="countdown-type-btn active" 
+                                data-type="duration"
+                                onclick="selectCountdownType('duration')"
+                                style="flex: 1; padding: 0.75rem; border: 2px solid #3498db; background: #3498db; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
+                                <i class="fas fa-hourglass-half"></i> Duration
+                            </button>
+                            <button 
+                                class="countdown-type-btn" 
+                                data-type="target_time"
+                                onclick="selectCountdownType('target_time')"
+                                style="flex: 1; padding: 0.75rem; border: 2px solid #ddd; background: white; color: #666; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
+                                <i class="fas fa-clock"></i> Target Time
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Timer Name -->
+                    <div style="margin-bottom: 1rem;">
+                        <label for="countdownName" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            <i class="fas fa-tag"></i> Timer Name:
+                        </label>
+                        <input 
+                            type="text" 
+                            id="countdownName" 
+                            placeholder="e.g., New Year Countdown, Service Start"
+                            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;"
+                            value="Countdown"
+                        />
+                    </div>
+
+                    <!-- Duration Input (shown by default) -->
+                    <div id="durationInputSection" style="margin-bottom: 1rem;">
+                        <label for="countdownDuration" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            <i class="fas fa-hourglass-half"></i> Duration:
+                        </label>
+                        <div style="display: flex; gap: 0.75rem; align-items: center;">
+                            <input 
+                                type="number" 
+                                id="countdownMinutes" 
+                                min="0" 
+                                max="1440"
+                                value="5" 
+                                style="width: 80px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; text-align: center;"
+                            />
+                            <span style="font-weight: 600;">minutes</span>
+                            <input 
+                                type="number" 
+                                id="countdownSeconds" 
+                                min="0" 
+                                max="59"
+                                value="0" 
+                                style="width: 80px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; text-align: center;"
+                            />
+                            <span style="font-weight: 600;">seconds</span>
+                        </div>
+                    </div>
+
+                    <!-- Target Time Input (hidden by default) -->
+                    <div id="targetTimeInputSection" style="margin-bottom: 1rem; display: none;">
+                        <label for="targetTime" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            <i class="fas fa-clock"></i> Target Time:
+                        </label>
+                        <input 
+                            type="time" 
+                            id="targetTime" 
+                            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;"
+                        />
+                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #7f8c8d;">
+                            <i class="fas fa-info-circle"></i> Example: 23:59 for midnight, 09:00 for 9 AM
+                        </div>
+                    </div>
+
+                    <!-- Quick Presets for Target Time -->
+                    <div id="quickPresetsSection" style="margin-bottom: 1rem; display: none;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
+                            <i class="fas fa-bolt"></i> Quick Presets:
+                        </label>
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
+                            <button onclick="setQuickPreset('midnight')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
+                                <i class="fas fa-moon"></i> Midnight
+                            </button>
+                            <button onclick="setQuickPreset('noon')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
+                                <i class="fas fa-sun"></i> Noon
+                            </button>
+                            <button onclick="setQuickPreset('hour')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
+                                <i class="fas fa-clock"></i> Top of Hour
+                            </button>
+                            <button onclick="setQuickPreset('half')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
+                                <i class="fas fa-clock"></i> Half Hour
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.75rem;">
+                        <button class="btn btn-primary" onclick="startCountdownTimer()" style="flex: 1;">
+                            <i class="fas fa-play"></i> Start Countdown
+                        </button>
+                        <button class="btn btn-danger" onclick="stopCountdownTimer()">
+                            <i class="fas fa-stop"></i> Stop
+                        </button>
+                    </div>
+                    
+                    <div id="countdownStatus" style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
+                        <!-- Status messages will appear here -->
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- PROGRAMS TAB -->

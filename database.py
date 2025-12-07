@@ -152,6 +152,19 @@ def init_db():
         )
     ''')
     
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS countdown_timers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            target_time TIMESTAMP,
+            duration_seconds INTEGER,
+            timer_type TEXT NOT NULL CHECK(timer_type IN ('duration', 'target_time')),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMP,
+            is_active BOOLEAN DEFAULT FALSE
+        )
+    ''')
+    
     # Run migrations for existing tables
     run_migrations(conn)
     
