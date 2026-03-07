@@ -1,116 +1,106 @@
-<!-- templates/admin.html - Mobile-First Redesign -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <title>Timer Admin</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="theme-color" content="#0f0f0f">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="/static/css/admin.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&family=Oswald:wght@700&family=Bebas+Neue&family=Orbitron:wght@800&family=Roboto+Mono:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+    <link href="/static/css/admin.css?v=6" rel="stylesheet">
 </head>
 <body>
-    <!-- Top Header -->
-    <div class="mobile-header">
-        <h1><i class="fas fa-clock"></i> Timer</h1>
-        <a href="/kiosk" class="kiosk-btn" target="_blank">
-            <i class="fas fa-tv"></i> Kiosk
-        </a>
-    </div>
+    <!-- Header -->
+    <header class="app-header">
+        <h1><i class="fas fa-clock"></i> Stage Timer</h1>
+        <div class="header-actions">
+            <a href="/kiosk" class="icon-link" target="_blank" title="Open Kiosk">
+                <i class="fas fa-tv"></i>
+            </a>
+        </div>
+    </header>
 
     <!-- Alert Container -->
     <div id="alertContainer"></div>
-    
-    <!-- Desktop Navigation (hidden on mobile) -->
+
+    <!-- Desktop Navigation -->
     <nav class="desktop-nav">
         <button class="nav-btn active" onclick="switchTab('homeTab', this)">
-            <i class="fas fa-home"></i>
-            <span>Home</span>
+            <i class="fas fa-home"></i><span>Home</span>
         </button>
         <button class="nav-btn" onclick="switchTab('programsTab', this)">
-            <i class="fas fa-calendar-alt"></i>
-            <span>Programs</span>
+            <i class="fas fa-calendar-alt"></i><span>Programs</span>
         </button>
         <button class="nav-btn" onclick="switchTab('activitiesTab', this)">
-            <i class="fas fa-tasks"></i>
-            <span>Activities</span>
+            <i class="fas fa-tasks"></i><span>Activities</span>
         </button>
         <button class="nav-btn" onclick="switchTab('scheduleTab', this)">
-            <i class="fas fa-clock"></i>
-            <span>Schedule</span>
+            <i class="fas fa-clock"></i><span>Schedule</span>
         </button>
     </nav>
 
-    <!-- Main Content Area -->
+    <!-- Main Content -->
     <div class="content-wrapper">
-        
-        <!-- HOME TAB -->
+
+        <!-- ═══ HOME TAB ═══ -->
         <div class="tab-content active" id="homeTab">
-            <!-- Queued Program Card -->
-            <div class="card" id="queuedProgramCard" style="display: none; border-left: 4px solid #f1c40f; background: #fef9e7;">
-                <div class="card-body" style="padding: 1rem;">
-                    <div style="display: flex; align-items: center; gap: 1rem;">
-                        <div style="font-size: 2rem; color: #f1c40f;">
-                            <i class="fas fa-hourglass-half"></i>
-                        </div>
-                        <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.25rem 0; color: #2c3e50;">
-                                <i class="fas fa-layer-group"></i> Up Next
-                            </h4>
-                            <p id="queuedProgramName" style="margin: 0; color: #34495e; font-size: 1.05rem; font-weight: 600;">
-                            </p>
-                            <p id="queuedProgramCountdown" style="margin: 0.5rem 0 0 0; font-weight: bold; color: #e67e22; font-size: 1.1rem;">
-                            </p>
-                        </div>
-                        <button class="btn btn-danger btn-sm" onclick="clearQueue()" title="Remove from queue" style="padding: 0.4rem 0.6rem;">
-                            <i class="fas fa-times"></i>
-                        </button>
+
+            <!-- Queued Program -->
+            <div id="queuedProgramCard" style="display:none;">
+                <div class="queue-banner">
+                    <i class="fas fa-hourglass-half queue-icon"></i>
+                    <div class="queue-info">
+                        <div class="queue-label">Up Next</div>
+                        <div class="queue-name" id="queuedProgramName"></div>
+                        <div class="queue-countdown" id="queuedProgramCountdown"></div>
                     </div>
+                    <button class="queue-clear" onclick="clearQueue()" title="Clear queue">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
             </div>
 
-            <!-- Timer Status Card -->
+            <!-- Timer Status -->
             <div class="status-card">
-                <div class="status-header">
-                    <span class="status-indicator status-stopped"></span>
+                <div class="status-row">
+                    <span class="status-dot stopped"></span>
                     <span id="statusText">STOPPED</span>
                 </div>
-                <div class="status-main">
-                    <div class="activity-display">
-                        <div class="activity-label">Current Activity</div>
-                        <div class="activity-name" id="currentActivity">-</div>
-                    </div>
-                    <div class="time-display" id="timeRemaining">00:00</div>
+                <div class="timer-display">
+                    <div class="activity-label">Current Activity</div>
+                    <div class="activity-name" id="currentActivity">-</div>
+                    <div class="time-value" id="timeRemaining">00:00</div>
                 </div>
             </div>
 
-            <!-- Quick Controls -->
-            <div class="quick-controls">
-                <button class="control-btn btn-start" onclick="startCurrentProgram()" id="startBtn">
-                    <i class="fas fa-play"></i>
-                    <span>Start</span>
+            <!-- Reset Screen -->
+            <button class="reset-btn" onclick="resetScreen()">
+                <i class="fas fa-power-off"></i> Reset Screen
+            </button>
+
+            <!-- Controls -->
+            <div class="controls-grid">
+                <button class="ctrl-btn green" onclick="startCurrentProgram()" id="startBtn">
+                    <i class="fas fa-play"></i><span>Start</span>
                 </button>
-                <button class="control-btn btn-smart" onclick="startProgramSmart()" id="smartStartBtn">
-                    <i class="fas fa-rocket"></i>
-                    <span>Smart Start</span>
+                <button class="ctrl-btn purple" onclick="startProgramSmart()" id="smartStartBtn">
+                    <i class="fas fa-rocket"></i><span>Smart</span>
                 </button>
-                <button class="control-btn btn-pause" onclick="pauseTimer()" id="pauseBtn" disabled>
-                    <i class="fas fa-pause"></i>
-                    <span>Pause</span>
+                <button class="ctrl-btn orange" onclick="pauseTimer()" id="pauseBtn" disabled>
+                    <i class="fas fa-pause"></i><span>Pause</span>
                 </button>
-                <button class="control-btn btn-resume" onclick="resumeTimer()" id="resumeBtn" disabled>
-                    <i class="fas fa-play-circle"></i>
-                    <span>Resume</span>
+                <button class="ctrl-btn blue" onclick="resumeTimer()" id="resumeBtn" disabled>
+                    <i class="fas fa-play-circle"></i><span>Resume</span>
                 </button>
-                <button class="control-btn btn-next" onclick="nextItem()" id="nextBtn" disabled>
-                    <i class="fas fa-forward"></i>
-                    <span>Next</span>
+                <button class="ctrl-btn blue" onclick="nextItem()" id="nextBtn" disabled>
+                    <i class="fas fa-forward"></i><span>Next</span>
                 </button>
-                <button class="control-btn btn-stop" onclick="stopTimer()" id="stopBtn" disabled>
-                    <i class="fas fa-stop"></i>
-                    <span>Stop</span>
+                <button class="ctrl-btn red" onclick="stopTimer()" id="stopBtn" disabled>
+                    <i class="fas fa-stop"></i><span>Stop</span>
                 </button>
             </div>
 
-            <!-- Current Program Card -->
+            <!-- Current Program -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
                     <h3><i class="fas fa-list-alt"></i> Current Program</h3>
@@ -123,14 +113,14 @@
                     <button class="btn btn-primary full-width" onclick="showProgramSelector()">
                         <i class="fas fa-folder-open"></i> Load Program
                     </button>
-                    <button class="btn btn-secondary full-width" onclick="editCurrentProgram()" id="editCurrentProgramBtn" style="display: none; margin-top: 0.5rem;">
+                    <button class="btn btn-secondary full-width" onclick="editCurrentProgram()" id="editCurrentProgramBtn" style="display:none; margin-top:0.5rem;">
                         <i class="fas fa-edit"></i> Edit Program
                     </button>
                 </div>
             </div>
 
-            <!-- Live Schedule (when running) -->
-            <div class="card" id="liveScheduleCard" style="display: none;">
+            <!-- Live Schedule -->
+            <div class="card" id="liveScheduleCard" style="display:none;">
                 <div class="card-header" onclick="toggleCard(this)">
                     <h3><i class="fas fa-broadcast-tower"></i> Live Schedule</h3>
                     <i class="fas fa-chevron-down toggle"></i>
@@ -140,226 +130,183 @@
                     <div id="liveScheduleList"></div>
                 </div>
             </div>
-            
-            <!-- Stage Message Card -->
+
+            <!-- Stage Message -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
-                    <h3><i class="fas fa-bullhorn"></i> Send Message to Stage</h3>
+                    <h3><i class="fas fa-bullhorn"></i> Stage Message</h3>
                     <i class="fas fa-chevron-down toggle"></i>
                 </div>
                 <div class="card-body">
-                    <p class="help-text"><i class="fas fa-info-circle"></i> Display a message on the kiosk screen</p>
-                    
-                    <div style="margin-bottom: 1rem;">
-                        <label for="stageMessageInput" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="fas fa-comment"></i> Message:
-                        </label>
-                        <textarea 
-                            id="stageMessageInput" 
-                            placeholder="Enter your message here..."
-                            style="width: 100%; min-height: 100px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; font-family: inherit; resize: vertical;"
-                            maxlength="200"
-                        ></textarea>
-                        <div style="text-align: right; font-size: 0.85rem; color: #7f8c8d; margin-top: 0.25rem;">
-                            <span id="messageCharCount">0</span>/200 characters
-                        </div>
+                    <label class="inline-label">Message</label>
+                    <textarea id="stageMessageInput" class="section-input" placeholder="Keep it short for maximum impact..." maxlength="100" rows="2"></textarea>
+                    <div class="char-count"><span id="messageCharCount">0</span>/100</div>
+
+                    <label class="inline-label" style="margin-top:0.75rem;">Duration</label>
+                    <div class="range-row">
+                        <input type="range" id="messageDuration" min="10" max="300" value="60" step="10">
+                        <span class="range-value" id="durationDisplay">1:00</span>
                     </div>
-                    
-                    <div style="margin-bottom: 1rem;">
-                        <label for="messageDuration" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="fas fa-clock"></i> Display Duration:
-                        </label>
-                        <div style="display: flex; gap: 0.75rem; align-items: center;">
-                            <input 
-                                type="range" 
-                                id="messageDuration" 
-                                min="10" 
-                                max="300" 
-                                value="60" 
-                                step="10"
-                                style="flex: 1;"
-                            />
-                            <span id="durationDisplay" style="font-weight: 700; font-size: 1.1rem; min-width: 80px; color: #3498db;">
-                                1:00
-                            </span>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: #7f8c8d; margin-top: 0.25rem;">
-                            <span>10 seconds</span>
-                            <span>5 minutes</span>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 0.75rem;">
-                        <button class="btn btn-primary" onclick="sendStageMessage()" style="flex: 1;">
-                            <i class="fas fa-paper-plane"></i> Send to Stage
+                    <div class="range-labels"><span>10s</span><span>5min</span></div>
+
+                    <div class="action-row">
+                        <button class="btn btn-primary" onclick="sendStageMessage()">
+                            <i class="fas fa-paper-plane"></i> Send
                         </button>
-                        <button class="btn btn-danger" onclick="clearStageMessage()">
+                        <button class="btn btn-secondary" onclick="clearStageMessage()">
                             <i class="fas fa-times"></i> Clear
                         </button>
                     </div>
-                    
-                    <div id="messageStatus" style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
-                        <!-- Status messages will appear here -->
+                    <div id="messageStatus" class="status-msg"></div>
+                </div>
+            </div>
+
+            <!-- Kiosk Theme -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-palette"></i> Kiosk Theme</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body">
+                    <div class="theme-grid" id="themeGrid">
+                        <button class="theme-option active" data-theme="flip" onclick="setTheme('flip')">
+                            <div class="theme-preview flip-preview"></div>
+                            <span>Flip Clock</span>
+                        </button>
+                        <button class="theme-option" data-theme="minimal" onclick="setTheme('minimal')">
+                            <div class="theme-preview minimal-preview"></div>
+                            <span>Minimal</span>
+                        </button>
+                        <button class="theme-option" data-theme="neon" onclick="setTheme('neon')">
+                            <div class="theme-preview neon-preview"></div>
+                            <span>Neon</span>
+                        </button>
+                        <button class="theme-option" data-theme="warm" onclick="setTheme('warm')">
+                            <div class="theme-preview warm-preview"></div>
+                            <span>Warm</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Countdown Timer Card -->
+            <!-- Kiosk Font -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-font"></i> Clock Font</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body">
+                    <div class="font-grid" id="fontGrid">
+                        <button class="font-option active" data-font="inter" onclick="setFont('inter')">
+                            <span class="font-sample" style="font-family:'Inter',sans-serif;">07:00</span>
+                            <span class="font-name">Inter</span>
+                        </button>
+                        <button class="font-option" data-font="oswald" onclick="setFont('oswald')">
+                            <span class="font-sample" style="font-family:'Oswald',sans-serif;">07:00</span>
+                            <span class="font-name">Oswald</span>
+                        </button>
+                        <button class="font-option" data-font="bebas" onclick="setFont('bebas')">
+                            <span class="font-sample" style="font-family:'Bebas Neue',sans-serif;">07:00</span>
+                            <span class="font-name">Bebas Neue</span>
+                        </button>
+                        <button class="font-option" data-font="orbitron" onclick="setFont('orbitron')">
+                            <span class="font-sample" style="font-family:'Orbitron',sans-serif;">07:00</span>
+                            <span class="font-name">Orbitron</span>
+                        </button>
+                        <button class="font-option" data-font="mono" onclick="setFont('mono')">
+                            <span class="font-sample" style="font-family:'Roboto Mono',monospace;">07:00</span>
+                            <span class="font-name">Roboto Mono</span>
+                        </button>
+                        <button class="font-option" data-font="jetbrains" onclick="setFont('jetbrains')">
+                            <span class="font-sample" style="font-family:'JetBrains Mono',monospace;">07:00</span>
+                            <span class="font-name">JetBrains</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Countdown Timer -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">
                     <h3><i class="fas fa-stopwatch"></i> Countdown Timer</h3>
                     <i class="fas fa-chevron-down toggle"></i>
                 </div>
                 <div class="card-body">
-                    <p class="help-text"><i class="fas fa-info-circle"></i> Start a countdown timer (stops running programs)</p>
-                    
-                    <!-- Timer Type Selection -->
-                    <div style="margin-bottom: 1.5rem;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 0.75rem;">
-                            <i class="fas fa-tasks"></i> Timer Type:
-                        </label>
-                        <div style="display: flex; gap: 1rem;">
-                            <button 
-                                class="countdown-type-btn active" 
-                                data-type="duration"
-                                onclick="selectCountdownType('duration')"
-                                style="flex: 1; padding: 0.75rem; border: 2px solid #3498db; background: #3498db; color: white; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
-                                <i class="fas fa-hourglass-half"></i> Duration
-                            </button>
-                            <button 
-                                class="countdown-type-btn" 
-                                data-type="target_time"
-                                onclick="selectCountdownType('target_time')"
-                                style="flex: 1; padding: 0.75rem; border: 2px solid #ddd; background: white; color: #666; border-radius: 8px; cursor: pointer; font-weight: 600; transition: all 0.2s;">
-                                <i class="fas fa-clock"></i> Target Time
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Timer Name -->
-                    <div style="margin-bottom: 1rem;">
-                        <label for="countdownName" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="fas fa-tag"></i> Timer Name:
-                        </label>
-                        <input 
-                            type="text" 
-                            id="countdownName" 
-                            placeholder="e.g., New Year Countdown, Service Start"
-                            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;"
-                            value="Countdown"
-                        />
-                    </div>
-
-                    <!-- Duration Input (shown by default) -->
-                    <div id="durationInputSection" style="margin-bottom: 1rem;">
-                        <label for="countdownDuration" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="fas fa-hourglass-half"></i> Duration:
-                        </label>
-                        <div style="display: flex; gap: 0.75rem; align-items: center;">
-                            <input 
-                                type="number" 
-                                id="countdownMinutes" 
-                                min="0" 
-                                max="1440"
-                                value="5" 
-                                style="width: 80px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; text-align: center;"
-                            />
-                            <span style="font-weight: 600;">minutes</span>
-                            <input 
-                                type="number" 
-                                id="countdownSeconds" 
-                                min="0" 
-                                max="59"
-                                value="0" 
-                                style="width: 80px; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem; text-align: center;"
-                            />
-                            <span style="font-weight: 600;">seconds</span>
-                        </div>
-                    </div>
-
-                    <!-- Target Time Input (hidden by default) -->
-                    <div id="targetTimeInputSection" style="margin-bottom: 1rem; display: none;">
-                        <label for="targetTime" style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="fas fa-clock"></i> Target Time:
-                        </label>
-                        <input 
-                            type="time" 
-                            id="targetTime" 
-                            style="width: 100%; padding: 0.75rem; border: 1px solid #ddd; border-radius: 8px; font-size: 1rem;"
-                        />
-                        <div style="margin-top: 0.5rem; font-size: 0.85rem; color: #7f8c8d;">
-                            <i class="fas fa-info-circle"></i> Example: 23:59 for midnight, 09:00 for 9 AM
-                        </div>
-                    </div>
-
-                    <!-- Quick Presets for Target Time -->
-                    <div id="quickPresetsSection" style="margin-bottom: 1rem; display: none;">
-                        <label style="display: block; font-weight: 600; margin-bottom: 0.5rem;">
-                            <i class="fas fa-bolt"></i> Quick Presets:
-                        </label>
-                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;">
-                            <button onclick="setQuickPreset('midnight')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
-                                <i class="fas fa-moon"></i> Midnight
-                            </button>
-                            <button onclick="setQuickPreset('noon')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
-                                <i class="fas fa-sun"></i> Noon
-                            </button>
-                            <button onclick="setQuickPreset('hour')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
-                                <i class="fas fa-clock"></i> Top of Hour
-                            </button>
-                            <button onclick="setQuickPreset('half')" class="btn btn-secondary" style="font-size: 0.9rem; padding: 0.5rem;">
-                                <i class="fas fa-clock"></i> Half Hour
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 0.75rem;">
-                        <button class="btn btn-primary" onclick="startCountdownTimer()" style="flex: 1;">
-                            <i class="fas fa-play"></i> Start Countdown
+                    <div class="type-toggle">
+                        <button class="type-toggle-btn countdown-type-btn active" data-type="duration" onclick="selectCountdownType('duration')">
+                            <i class="fas fa-hourglass-half"></i> Duration
                         </button>
-                        <button class="btn btn-danger" onclick="stopCountdownTimer()">
+                        <button class="type-toggle-btn countdown-type-btn" data-type="target_time" onclick="selectCountdownType('target_time')">
+                            <i class="fas fa-clock"></i> Target Time
+                        </button>
+                    </div>
+
+                    <label class="inline-label">Timer Name</label>
+                    <input type="text" id="countdownName" class="form-input" value="Countdown" placeholder="e.g., Service Start" style="margin-bottom:0.75rem;">
+
+                    <div id="durationInputSection">
+                        <label class="inline-label">Duration</label>
+                        <div class="duration-row">
+                            <input type="number" id="countdownMinutes" min="0" max="1440" value="5">
+                            <span>min</span>
+                            <input type="number" id="countdownSeconds" min="0" max="59" value="0">
+                            <span>sec</span>
+                        </div>
+                    </div>
+
+                    <div id="targetTimeInputSection" style="display:none;">
+                        <label class="inline-label">Target Time</label>
+                        <input type="time" id="targetTime" class="form-input" style="margin-bottom:0.5rem;">
+                        <p class="help-text" style="margin-bottom:0;"><i class="fas fa-info-circle"></i> e.g., 23:59 for midnight</p>
+                    </div>
+
+                    <div id="quickPresetsSection" class="quick-presets" style="display:none; margin-top:0.75rem;">
+                        <button onclick="setQuickPreset('midnight')" class="btn btn-secondary"><i class="fas fa-moon"></i> Midnight</button>
+                        <button onclick="setQuickPreset('noon')" class="btn btn-secondary"><i class="fas fa-sun"></i> Noon</button>
+                        <button onclick="setQuickPreset('hour')" class="btn btn-secondary"><i class="fas fa-clock"></i> Top of Hour</button>
+                        <button onclick="setQuickPreset('half')" class="btn btn-secondary"><i class="fas fa-clock"></i> Half Hour</button>
+                    </div>
+
+                    <div class="action-row" style="margin-top:0.75rem;">
+                        <button class="btn btn-primary" onclick="startCountdownTimer()">
+                            <i class="fas fa-play"></i> Start
+                        </button>
+                        <button class="btn btn-secondary" onclick="stopCountdownTimer()">
                             <i class="fas fa-stop"></i> Stop
                         </button>
                     </div>
-                    
-                    <div id="countdownStatus" style="margin-top: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
-                        <!-- Status messages will appear here -->
-                    </div>
+                    <div id="countdownStatus" class="status-msg"></div>
                 </div>
             </div>
         </div>
 
-        <!-- PROGRAMS TAB -->
+        <!-- ═══ PROGRAMS TAB ═══ -->
         <div class="tab-content" id="programsTab">
             <div class="tab-header">
                 <h2>Programs</h2>
-                <button class="btn btn-primary" onclick="showCreateProgramModal()">
+                <button class="btn btn-primary btn-sm" onclick="showCreateProgramModal()">
                     <i class="fas fa-plus"></i> New
                 </button>
             </div>
-            <div class="list-container" id="programList">
-                <!-- Programs loaded here -->
-            </div>
+            <div class="list-container" id="programList"></div>
         </div>
 
-        <!-- ACTIVITIES TAB -->
+        <!-- ═══ ACTIVITIES TAB ═══ -->
         <div class="tab-content" id="activitiesTab">
             <div class="tab-header">
                 <h2>Activities</h2>
-                <button class="btn btn-primary" onclick="showCreateActivityModal()">
+                <button class="btn btn-primary btn-sm" onclick="showCreateActivityModal()">
                     <i class="fas fa-plus"></i> New
                 </button>
             </div>
-            <div class="list-container" id="activityList">
-                <!-- Activities loaded here -->
-            </div>
+            <div class="list-container" id="activityList"></div>
         </div>
 
-        <!-- SCHEDULE TAB -->
+        <!-- ═══ SCHEDULE TAB ═══ -->
         <div class="tab-content" id="scheduleTab">
             <div class="tab-header">
-                <h2>Program Schedule</h2>
-                <button class="btn btn-primary" onclick="showAddActivityModal()" id="addActivityBtn">
+                <h2>Schedule</h2>
+                <button class="btn btn-primary btn-sm" onclick="showAddActivityModal()" id="addActivityBtn">
                     <i class="fas fa-plus"></i> Add
                 </button>
             </div>
@@ -367,42 +314,34 @@
                 <i class="fas fa-info-circle"></i>
                 <p>Load a program first to view its schedule</p>
             </div>
-            <div class="list-container" id="programSchedule">
-                <!-- Schedule loaded here -->
-            </div>
+            <div class="list-container" id="programSchedule"></div>
         </div>
     </div>
 
     <!-- Bottom Navigation -->
     <nav class="bottom-nav">
         <button class="nav-btn active" onclick="switchTab('homeTab', this)">
-            <i class="fas fa-home"></i>
-            <span>Home</span>
+            <i class="fas fa-home"></i><span>Home</span>
         </button>
         <button class="nav-btn" onclick="switchTab('programsTab', this)">
-            <i class="fas fa-calendar-alt"></i>
-            <span>Programs</span>
+            <i class="fas fa-calendar-alt"></i><span>Programs</span>
         </button>
         <button class="nav-btn" onclick="switchTab('activitiesTab', this)">
-            <i class="fas fa-tasks"></i>
-            <span>Activities</span>
+            <i class="fas fa-tasks"></i><span>Activities</span>
         </button>
         <button class="nav-btn" onclick="switchTab('scheduleTab', this)">
-            <i class="fas fa-clock"></i>
-            <span>Schedule</span>
+            <i class="fas fa-clock"></i><span>Schedule</span>
         </button>
     </nav>
 
-    <!-- MODALS -->
-    
-    <!-- Program Selector Modal -->
+    <!-- ═══ MODALS ═══ -->
+
+    <!-- Program Selector -->
     <div id="programSelectorModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Select Program</h3>
-                <button class="close-btn" onclick="closeModal('programSelectorModal')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="close-btn" onclick="closeModal('programSelectorModal')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div id="programSelectorList"></div>
@@ -410,14 +349,12 @@
         </div>
     </div>
 
-    <!-- Create Program Modal -->
+    <!-- Create Program -->
     <div id="createProgramModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Create Program</h3>
-                <button class="close-btn" onclick="closeModal('createProgramModal')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <h3>New Program</h3>
+                <button class="close-btn" onclick="closeModal('createProgramModal')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <form onsubmit="createProgram(event)">
@@ -427,7 +364,7 @@
                     </div>
                     <div class="form-group">
                         <label>Description</label>
-                        <textarea id="programDescription" class="form-input" rows="3" placeholder="Optional description"></textarea>
+                        <textarea id="programDescription" class="form-input" rows="2" placeholder="Optional"></textarea>
                     </div>
                     <div class="form-group">
                         <label>Day of Week</label>
@@ -443,14 +380,14 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Start Time (24-hour)</label>
+                        <label>Start Time (24h)</label>
                         <input type="text" id="programStartTime" class="form-input" placeholder="09:30" pattern="[0-9]{2}:[0-9]{2}">
                         <small class="help-text">e.g., 09:30 or 14:00</small>
                     </div>
                     <div class="form-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="programAutoStart">
-                            <span>Auto-start on app launch</span>
+                            <span>Auto-start on schedule</span>
                         </label>
                     </div>
                     <button type="submit" class="btn btn-primary full-width">Create Program</button>
@@ -459,14 +396,12 @@
         </div>
     </div>
 
-    <!-- Edit Program Modal -->
+    <!-- Edit Program -->
     <div id="editProgramModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Edit Program</h3>
-                <button class="close-btn" onclick="closeModal('editProgramModal')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="close-btn" onclick="closeModal('editProgramModal')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <form onsubmit="updateProgram(event)">
@@ -477,7 +412,7 @@
                     </div>
                     <div class="form-group">
                         <label>Description</label>
-                        <textarea id="editProgramDescription" class="form-input" rows="3"></textarea>
+                        <textarea id="editProgramDescription" class="form-input" rows="2"></textarea>
                     </div>
                     <div class="form-group">
                         <label>Day of Week</label>
@@ -493,13 +428,13 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Start Time (24-hour)</label>
+                        <label>Start Time (24h)</label>
                         <input type="text" id="editProgramStartTime" class="form-input" placeholder="09:30" pattern="[0-9]{2}:[0-9]{2}">
                     </div>
                     <div class="form-group">
                         <label class="checkbox-label">
                             <input type="checkbox" id="editProgramAutoStart">
-                            <span>Auto-start on app launch</span>
+                            <span>Auto-start on schedule</span>
                         </label>
                     </div>
                     <div class="button-group">
@@ -507,40 +442,33 @@
                         <button type="button" class="btn btn-danger" onclick="deleteCurrentProgram()">Delete</button>
                     </div>
                 </form>
-                
-                <!-- Activities Management Section -->
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e0e0e0;">
-                <div style="margin-top: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h4 style="margin: 0;"><i class="fas fa-list"></i> Program Schedule</h4>
-                        <div style="display: flex; gap: 0.5rem;">
+
+                <hr style="margin:1.25rem 0; border:none; border-top:1px solid var(--border);">
+
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+                        <h4 style="font-size:0.9rem; font-weight:600;"><i class="fas fa-list"></i> Schedule</h4>
+                        <div style="display:flex; gap:0.35rem;">
                             <button type="button" class="btn btn-primary btn-sm" onclick="showCreateActivityFromProgram()">
-                                <i class="fas fa-plus"></i> New Activity
+                                <i class="fas fa-plus"></i> New
                             </button>
                             <button type="button" class="btn btn-success btn-sm" onclick="showAddActivityFromProgram()">
-                                <i class="fas fa-plus-circle"></i> Add Existing
+                                <i class="fas fa-plus-circle"></i> Add
                             </button>
                         </div>
                     </div>
-                    <p class="help-text" style="margin-bottom: 1rem;">
-                        <i class="fas fa-info-circle"></i> Manage activities in this program's schedule. Drag to reorder.
-                    </p>
-                    <div id="editProgramScheduleList" class="list-container" style="max-height: 300px; overflow-y: auto;">
-                        <!-- Schedule items will be populated here -->
-                    </div>
+                    <div id="editProgramScheduleList" class="list-container" style="max-height:250px; overflow-y:auto;"></div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Create Activity Modal -->
+    <!-- Create Activity -->
     <div id="createActivityModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Create Activity</h3>
-                <button class="close-btn" onclick="closeModal('createActivityModal')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <h3>New Activity</h3>
+                <button class="close-btn" onclick="closeModal('createActivityModal')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <form onsubmit="createActivity(event)">
@@ -549,12 +477,12 @@
                         <input type="text" id="activityName" class="form-input" required placeholder="Worship">
                     </div>
                     <div class="form-group">
-                        <label>Default Duration (minutes)</label>
+                        <label>Default Duration (min)</label>
                         <input type="number" id="activityDuration" class="form-input" value="5" min="1" required>
                     </div>
                     <div class="form-group">
                         <label>Description</label>
-                        <textarea id="activityDescription" class="form-input" rows="3" placeholder="Optional description"></textarea>
+                        <textarea id="activityDescription" class="form-input" rows="2" placeholder="Optional"></textarea>
                     </div>
                     <button type="submit" class="btn btn-primary full-width">Create Activity</button>
                 </form>
@@ -562,24 +490,51 @@
         </div>
     </div>
 
-    <!-- Add Activity to Schedule Modal -->
+    <!-- Edit Activity -->
+    <div id="editActivityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Edit Activity</h3>
+                <button class="close-btn" onclick="closeModal('editActivityModal')"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form onsubmit="updateActivity(event)">
+                    <input type="hidden" id="editActivityId">
+                    <div class="form-group">
+                        <label>Activity Name</label>
+                        <input type="text" id="editActivityName" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Duration (min)</label>
+                        <input type="number" id="editActivityDuration" class="form-input" min="1" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="editActivityDescription" class="form-input" rows="2"></textarea>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary">Update</button>
+                        <button type="button" class="btn btn-danger" onclick="deleteActivity()">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Activity to Schedule -->
     <div id="addActivityModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
                 <h3>Add to Schedule</h3>
-                <button class="close-btn" onclick="closeModal('addActivityModal')">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button class="close-btn" onclick="closeModal('addActivityModal')"><i class="fas fa-times"></i></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
                     <label>Select Activity</label>
-                    <select id="activitySelect" class="form-input">
-                        <!-- Activities populated here -->
-                    </select>
+                    <select id="activitySelect" class="form-input"></select>
                 </div>
                 <div class="form-group">
-                    <label>Duration (minutes)</label>
+                    <label>Duration (min)</label>
                     <input type="number" id="scheduleActivityDuration" class="form-input" value="5" min="1" required>
                 </div>
                 <button class="btn btn-primary full-width" onclick="addActivityToSchedule()">Add to Schedule</button>
@@ -589,30 +544,18 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
-    <script src="/static/js/admin.js?v=3"></script>
+    <script src="/static/js/admin.js?v=7"></script>
     <script>
-        // Tab switching function
         function switchTab(tabId, button) {
-            // Hide all tabs
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            // Remove active from all nav buttons
-            document.querySelectorAll('.nav-btn').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            
-            // Show selected tab
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
             document.getElementById(tabId).classList.add('active');
             button.classList.add('active');
         }
-        
-        // Card collapse toggle
+
         function toggleCard(header) {
             header.classList.toggle('open');
-            const body = header.nextElementSibling;
-            body.classList.toggle('open');
+            header.nextElementSibling.classList.toggle('open');
         }
     </script>
 </body>

@@ -1,608 +1,773 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Church Countdown Timer</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+    <title>Stage Timer</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@200;300;400;600;700;800;900&family=Oswald:wght@200;300;400;500;600;700&family=Bebas+Neue&family=Orbitron:wght@400;500;600;700;800;900&family=Roboto+Mono:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@200;300;400;500;600;700;800&display=swap');
+
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            /* Flip theme (default - ice blue) */
+            --t-bg: #050a14;
+            --t-glow: #7dd3fc;
+            --t-text: #bae6fd;
+            --t-dim: rgba(186,230,253,0.25);
+            --t-panel: rgba(186,230,253,0.04);
+            --t-panel-border: rgba(186,230,253,0.08);
+            --t-warn: #f59e0b;
+            --t-crit: #ef4444;
+            --t-green: #22c55e;
+            --t-gold: #fbbf24;
+            --t-shadow: 0 0 80px rgba(125,211,252,0.15), 0 0 200px rgba(125,211,252,0.05);
+            --t-text-shadow: 0 0 40px rgba(125,211,252,0.5), 0 0 80px rgba(125,211,252,0.2);
+        }
+
+        body.theme-minimal {
+            --t-bg: #000000;
+            --t-glow: #ffffff;
+            --t-text: #e8e8e8;
+            --t-dim: rgba(255,255,255,0.2);
+            --t-panel: transparent;
+            --t-panel-border: transparent;
+            --t-warn: #f59e0b;
+            --t-crit: #ef4444;
+            --t-green: #22c55e;
+            --t-gold: #fbbf24;
+            --t-shadow: none;
+            --t-text-shadow: none;
+        }
+
+        body.theme-neon {
+            --t-bg: #0a0015;
+            --t-glow: #c084fc;
+            --t-text: #e9d5ff;
+            --t-dim: rgba(192,132,252,0.25);
+            --t-panel: rgba(192,132,252,0.04);
+            --t-panel-border: rgba(192,132,252,0.1);
+            --t-warn: #fb923c;
+            --t-crit: #f43f5e;
+            --t-green: #34d399;
+            --t-gold: #fbbf24;
+            --t-shadow: 0 0 80px rgba(192,132,252,0.2), 0 0 200px rgba(192,132,252,0.05);
+            --t-text-shadow: 0 0 40px rgba(192,132,252,0.6), 0 0 80px rgba(192,132,252,0.25);
+        }
+
+        body.theme-warm {
+            --t-bg: #0f0906;
+            --t-glow: #fb923c;
+            --t-text: #fed7aa;
+            --t-dim: rgba(251,146,60,0.25);
+            --t-panel: rgba(251,146,60,0.04);
+            --t-panel-border: rgba(251,146,60,0.08);
+            --t-warn: #facc15;
+            --t-crit: #ef4444;
+            --t-green: #4ade80;
+            --t-gold: #fbbf24;
+            --t-shadow: 0 0 80px rgba(251,146,60,0.15), 0 0 200px rgba(251,146,60,0.05);
+            --t-text-shadow: 0 0 40px rgba(251,146,60,0.5), 0 0 80px rgba(251,146,60,0.2);
+        }
 
         body {
-            background: #000;
-            color: #fff;
-            font-family: 'Poppins', sans-serif;
+            background: var(--t-bg);
+            color: var(--t-text);
+            font-family: 'Inter', system-ui, sans-serif;
             height: 100vh;
             width: 100vw;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
             overflow: hidden;
-        }
-
-        .container {
-            width: 100%;
-            height: 100%;
             display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
-            padding: 5vh 5vw;
-        }
-
-        /* Clock (idle state) */
-        .clock-view {
-            display: flex;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
+            -webkit-font-smoothing: antialiased;
         }
-        .clock-view.hidden { display: none; }
-        .clock-time {
-            font-size: 28vh;
+
+        /* ── Font classes ── */
+        body.font-inter .digit, body.font-inter .digit-sep, body.font-inter .clock { font-family: 'Inter', sans-serif; }
+        body.font-oswald .digit, body.font-oswald .digit-sep, body.font-oswald .clock { font-family: 'Oswald', sans-serif; }
+        body.font-bebas .digit, body.font-bebas .digit-sep, body.font-bebas .clock { font-family: 'Bebas Neue', sans-serif; letter-spacing: 0.05em; }
+        body.font-orbitron .digit, body.font-orbitron .digit-sep, body.font-orbitron .clock { font-family: 'Orbitron', sans-serif; }
+        body.font-mono .digit, body.font-mono .digit-sep, body.font-mono .clock { font-family: 'Roboto Mono', monospace; }
+        body.font-jetbrains .digit, body.font-jetbrains .digit-sep, body.font-jetbrains .clock { font-family: 'JetBrains Mono', monospace; }
+
+        /* ── Scenes ── */
+        .scene {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+            pointer-events: none;
+        }
+        .scene.active { opacity: 1; pointer-events: auto; }
+
+        /* ── Flip panel (shared digit container) ── */
+        .flip-panel {
+            background: var(--t-panel);
+            border: 1px solid var(--t-panel-border);
+            border-radius: clamp(8px, 1.5vw, 24px);
+            padding: clamp(1rem, 3vh, 3rem) clamp(1.5rem, 4vw, 5rem);
+            position: relative;
+            box-shadow: var(--t-shadow);
+        }
+
+        /* Horizontal split line */
+        .flip-panel::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 1px;
+            background: rgba(255,255,255,0.06);
+            pointer-events: none;
+        }
+
+        /* ── Digit display ── */
+        .digit-row {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 0;
+        }
+
+        .digit-group {
+            display: flex;
+            align-items: baseline;
+        }
+
+        .digit {
+            font-size: clamp(6rem, 20vw, 28rem);
             font-weight: 900;
-            line-height: 1;
-            letter-spacing: 0.03em;
+            line-height: 0.9;
+            color: var(--t-text);
+            text-shadow: var(--t-text-shadow);
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -0.02em;
         }
-        .clock-date {
-            font-size: 3.5vh;
+
+        .digit-sep {
+            font-size: clamp(5rem, 16vw, 22rem);
+            font-weight: 200;
+            color: var(--t-text);
+            text-shadow: var(--t-text-shadow);
+            margin: 0 clamp(0.2rem, 0.5vw, 1rem);
+            align-self: center;
+            line-height: 0.9;
+            opacity: 0.7;
+        }
+
+        .digit-unit {
+            font-size: clamp(0.8rem, 2vw, 2.5rem);
+            font-weight: 600;
+            color: var(--t-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            margin: 0 clamp(0.3rem, 0.8vw, 1.2rem);
+            align-self: flex-end;
+            padding-bottom: clamp(0.3rem, 0.8vh, 1rem);
+        }
+
+        /* ── Labels ── */
+        .scene-label {
+            font-size: clamp(1.2rem, 3.5vw, 4rem);
+            font-weight: 800;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            color: var(--t-text);
+            text-shadow: var(--t-text-shadow);
+            margin-bottom: clamp(1rem, 3vh, 4rem);
+            opacity: 0.85;
+        }
+
+        .scene-sub {
+            font-size: clamp(0.7rem, 1.5vw, 1.5rem);
             font-weight: 300;
-            color: rgba(255,255,255,0.4);
-            margin-top: 2vh;
+            color: var(--t-dim);
+            letter-spacing: 0.15em;
+            margin-top: clamp(1rem, 2.5vh, 3rem);
+            text-transform: uppercase;
+        }
+
+        /* ── IDLE CLOCK ── */
+        #idleScene .clock {
+            font-size: clamp(8rem, 22vw, 30rem);
+            font-weight: 200;
+            letter-spacing: -0.03em;
+            line-height: 1;
+            color: var(--t-text);
+            text-shadow: var(--t-text-shadow);
+        }
+        #idleScene .date {
+            font-size: clamp(1rem, 2.5vw, 2.5rem);
+            font-weight: 300;
+            color: var(--t-dim);
+            margin-top: 1.5vh;
             letter-spacing: 0.15em;
             text-transform: uppercase;
         }
 
-        /* Activity name */
-        .activity-name {
-            font-size: 6vh;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3em;
-            color: rgba(255,255,255,0.5);
-            margin-bottom: 4vh;
+        /* ── TIMER ── */
+        .state-warning .digit { color: var(--t-warn); text-shadow: 0 0 40px rgba(245,158,11,0.5); }
+        .state-warning .scene-label { color: rgba(245,158,11,0.5); }
+        .state-critical .digit { color: var(--t-crit); animation: throb 0.8s ease-in-out infinite; text-shadow: 0 0 40px rgba(239,68,68,0.6); }
+        .state-critical .scene-label { color: rgba(239,68,68,0.5); }
+
+        @keyframes throb {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.02); }
         }
 
-        /* Countdown numbers */
-        .countdown {
+        .time-up-display {
+            display: none;
+        }
+        .time-up-display.show {
             display: flex;
-            align-items: baseline;
-            justify-content: center;
-            gap: 1vw;
-        }
-        .countdown .num {
-            font-size: 28vh;
-            font-weight: 900;
-            line-height: 1;
-            letter-spacing: 0.02em;
-            transition: color 0.5s ease;
-        }
-        .countdown .sep {
-            font-size: 22vh;
-            font-weight: 300;
-            color: rgba(255,255,255,0.3);
-            line-height: 1;
-            transition: color 0.5s ease;
-        }
-
-        /* Warning colors */
-        .warn-orange .num, .warn-orange .sep { color: #f39c12; }
-        .warn-red .num, .warn-red .sep { color: #e74c3c; }
-        .warn-red .num { animation: pulse-red 1s infinite; }
-
-        @keyframes pulse-red {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* TIME UP */
-        .time-up {
-            display: none;
-            font-size: 28vh;
-            font-weight: 900;
-            color: #e74c3c;
-            animation: pulse-red 0.8s infinite;
-        }
-        .time-up.show { display: block; }
-
-        /* Normal view wrapper */
-        .normal-view {
-            display: none;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
+        }
+        .time-up-text {
+            font-size: clamp(5rem, 16vw, 22rem);
+            font-weight: 900;
+            color: var(--t-crit);
+            animation: throb 0.8s ease-in-out infinite;
+            text-shadow: 0 0 60px rgba(239,68,68,0.5);
         }
 
-        /* Progress bar */
-        .progress-bar-container {
+        /* ── WAITING ── */
+        #waitScene .scene-label { color: rgba(251,191,36,0.4); }
+        #waitScene .digit { color: var(--t-gold); text-shadow: 0 0 40px rgba(251,191,36,0.4); }
+        #waitScene .digit-unit { color: rgba(251,191,36,0.3); }
+        #waitScene .digit-sep { color: rgba(251,191,36,0.2); }
+
+        /* ── END ── */
+        #endScene .end-text {
+            font-size: clamp(5rem, 16vw, 22rem);
+            font-weight: 900;
+            color: var(--t-green);
+            letter-spacing: 0.05em;
+            text-shadow: 0 0 60px rgba(34,197,94,0.4);
+            animation: breathe 3s ease-in-out infinite;
+        }
+        @keyframes breathe {
+            0%, 100% { opacity: 0.8; }
+            50% { opacity: 1; }
+        }
+
+        /* ── MESSAGE ── */
+        #msgScene {
+            background: #000;
+            z-index: 100;
+            padding: 5vh 5vw;
+        }
+        #msgScene::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at center, rgba(99,102,241,0.15) 0%, transparent 70%);
+            animation: msgPulse 3s ease-in-out infinite;
+            pointer-events: none;
+        }
+        @keyframes msgPulse {
+            0%, 100% { opacity: 0.5; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.05); }
+        }
+        #msgScene .msg-text {
+            font-weight: 900;
+            text-align: center;
+            line-height: 1.1;
+            max-width: 90vw;
+            max-height: 70vh;
+            color: #fff;
+            text-shadow: 0 0 60px rgba(255,255,255,0.3), 0 0 120px rgba(99,102,241,0.2);
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            z-index: 1;
+        }
+        /* Auto-size: fewer chars = bigger text */
+        #msgScene .msg-text.msg-xs { font-size: clamp(5rem, 14vw, 18rem); }  /* 1-20 chars */
+        #msgScene .msg-text.msg-sm { font-size: clamp(3.5rem, 10vw, 14rem); } /* 21-50 chars */
+        #msgScene .msg-text.msg-md { font-size: clamp(2.5rem, 7vw, 10rem); }  /* 51-80 chars */
+        #msgScene .msg-text.msg-lg { font-size: clamp(1.8rem, 5vw, 7rem); }   /* 81-100 chars */
+
+        #msgScene .msg-countdown {
+            position: absolute;
+            bottom: 5vh;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: clamp(1.2rem, 2.5vw, 2.5rem);
+            font-weight: 700;
+            color: rgba(255,255,255,0.25);
+            font-variant-numeric: tabular-nums;
+            z-index: 1;
+        }
+        #msgScene .msg-progress {
             position: absolute;
             bottom: 0;
             left: 0;
             right: 0;
-            height: 0.5vh;
-            background: rgba(255,255,255,0.08);
+            height: 6px;
+            background: rgba(255,255,255,0.06);
+            z-index: 1;
         }
-        .progress-fill {
+        #msgScene .msg-progress-fill {
             height: 100%;
-            background: #fff;
-            transition: width 1s linear, background-color 0.5s ease;
-            width: 100%;
+            background: linear-gradient(90deg, #6366f1, #a855f7);
+            transition: width 1s linear;
+            box-shadow: 0 0 20px rgba(99,102,241,0.5);
         }
-        .progress-fill.warn-orange { background: #f39c12; }
-        .progress-fill.warn-red { background: #e74c3c; }
 
-        /* Waiting state */
-        .waiting-view {
+        /* ── Mini timer ── */
+        .mini-timer {
             display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            position: fixed;
+            bottom: 2.5vh; right: 2.5vw;
+            z-index: 101;
+            text-align: right;
         }
-        .waiting-view.active { display: flex; }
-        .waiting-label {
-            font-size: 3vh;
-            font-weight: 300;
-            color: rgba(255,255,255,0.35);
-            letter-spacing: 0.3em;
+        .mini-timer.show { display: block; }
+        .mini-timer .mini-label {
+            font-size: clamp(0.6rem, 1vw, 1rem);
+            font-weight: 600;
+            color: rgba(255,255,255,0.4);
+            letter-spacing: 0.15em;
             text-transform: uppercase;
-            margin-bottom: 3vh;
         }
-        .waiting-countdown {
-            font-size: 28vh;
-            font-weight: 900;
-            color: #f1c40f;
-            line-height: 1;
-        }
-        .waiting-meta {
-            font-size: 3vh;
-            font-weight: 300;
-            color: rgba(255,255,255,0.25);
-            margin-top: 3vh;
-            letter-spacing: 0.1em;
+        .mini-timer .mini-time {
+            font-size: clamp(1.5rem, 3.5vw, 4rem);
+            font-weight: 800;
+            color: #fff;
+            font-variant-numeric: tabular-nums;
         }
 
-        /* Queued banner */
+        /* ── Queued banner ── */
         .queued-banner {
             display: none;
-            position: absolute;
-            bottom: 3vh;
+            position: fixed;
+            bottom: 2.5vh;
             left: 50%;
             transform: translateX(-50%);
-            align-items: center;
-            gap: 1.5vw;
-            font-size: 2vh;
-            color: rgba(255,255,255,0.35);
+            font-size: clamp(0.7rem, 1.2vw, 1.2rem);
+            color: var(--t-dim);
             letter-spacing: 0.1em;
+            z-index: 50;
             white-space: nowrap;
         }
-        .queued-banner.active { display: flex; }
-        .queued-banner .label {
+        .queued-banner.active { display: flex; gap: 1vw; align-items: center; }
+        .queued-banner .q-label {
             font-weight: 700;
-            color: rgba(241,196,15,0.6);
+            color: rgba(251,191,36,0.4);
             text-transform: uppercase;
             letter-spacing: 0.2em;
         }
 
-        /* End overlay */
-        .end-overlay {
-            display: none;
+        /* ── Progress ── */
+        .progress {
             position: fixed;
-            inset: 0;
-            background: #000;
-            z-index: 80;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
+            bottom: 0; left: 0; right: 0;
+            height: 4px;
+            background: rgba(255,255,255,0.04);
+            z-index: 50;
         }
-        .end-text {
-            font-size: 20vh;
-            font-weight: 900;
-            color: #2ecc71;
-            letter-spacing: 0.1em;
-            animation: end-pulse 2s ease-in-out infinite;
-        }
-        @keyframes end-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        /* Stage message overlay */
-        .msg-overlay {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            z-index: 2000;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            padding: 5vh;
-            animation: slide-in 0.4s ease-out;
-        }
-        .msg-overlay.show { display: flex; }
-        .msg-overlay.hiding { animation: slide-out 0.4s ease-in forwards; }
-        @keyframes slide-in { from { transform: translateY(-100%); } to { transform: translateY(0); } }
-        @keyframes slide-out { from { transform: translateY(0); } to { transform: translateY(-100%); } }
-
-        .msg-text {
-            font-size: 8vh;
-            font-weight: 900;
-            text-align: center;
-            line-height: 1.3;
-            max-width: 85vw;
-        }
-        .msg-timer {
-            margin-top: 4vh;
-            font-size: 2.5vh;
-            font-weight: 300;
-            color: rgba(255,255,255,0.7);
-        }
-        .msg-bar {
-            width: 30vw;
-            height: 0.4vh;
-            background: rgba(255,255,255,0.2);
-            border-radius: 1vh;
-            margin-top: 2vh;
-            overflow: hidden;
-        }
-        .msg-bar-fill {
+        .progress .fill {
             height: 100%;
-            background: #fff;
-            transition: width 1s linear;
-            border-radius: 1vh;
+            background: var(--t-glow);
+            width: 100%;
+            transition: width 1s linear, background 0.5s;
         }
-
-        /* Minimized timer corner */
-        .mini-timer {
-            display: none;
-            position: fixed;
-            bottom: 3vh;
-            right: 3vh;
-            background: rgba(0,0,0,0.8);
-            padding: 1.5vh 2.5vh;
-            border-radius: 1.5vh;
-            z-index: 2001;
-        }
-        .mini-timer.show { display: block; }
-        .mini-timer .label { font-size: 1.5vh; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.2em; }
-        .mini-timer .time { font-size: 4vh; font-weight: 900; }
-
-        @media (max-width: 768px) {
-            .clock-time, .countdown .num, .waiting-countdown, .time-up { font-size: 18vh; }
-            .countdown .sep { font-size: 14vh; }
-            .activity-name { font-size: 4vh; }
-        }
+        .progress .fill.warn { background: var(--t-warn); }
+        .progress .fill.crit { background: var(--t-crit); }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Clock (idle) -->
-        <div class="clock-view" id="clockView">
-            <div class="clock-time" id="clockTime">00:00</div>
-            <div class="clock-date" id="clockDate"></div>
-        </div>
+    <!-- Idle Clock -->
+    <div class="scene active" id="idleScene">
+        <div class="clock" id="idleClock">00:00</div>
+        <div class="date" id="idleDate"></div>
+    </div>
 
-        <!-- Timer view -->
-        <div class="normal-view" id="normalView">
-            <div class="activity-name" id="activityName">READY</div>
-            <div class="countdown" id="countdown">
-                <span class="num" id="hours">00</span>
-                <span class="sep">:</span>
-                <span class="num" id="minutes">00</span>
-                <span class="sep">:</span>
-                <span class="num" id="seconds">00</span>
+    <!-- Running Timer -->
+    <div class="scene" id="timerScene">
+        <div class="scene-label" id="activityLabel">COUNTDOWN</div>
+        <div class="flip-panel" id="flipPanel">
+            <div class="digit-row" id="digitRow">
+                <div class="digit-group">
+                    <span class="digit" id="d-mm">07</span>
+                    <span class="digit-unit">min</span>
+                </div>
+                <div class="digit-group">
+                    <span class="digit" id="d-ss">00</span>
+                </div>
             </div>
-            <div class="time-up" id="timeUpMessage">TIME UP</div>
         </div>
+        <div class="scene-sub" id="activitySub"></div>
 
-        <!-- Waiting state -->
-        <div class="waiting-view" id="waitingView">
-            <div class="activity-name" id="waitingProgramName"></div>
-            <div class="waiting-label">starting in</div>
-            <div class="waiting-countdown" id="waitingCountdown">00:00:00</div>
-            <div class="waiting-meta" id="waitingTime"></div>
+        <div class="time-up-display" id="timeUpDisplay">
+            <span class="time-up-text">TIME UP</span>
         </div>
+    </div>
+
+    <!-- Waiting -->
+    <div class="scene" id="waitScene">
+        <div class="scene-label" id="waitLabel">STARTING IN</div>
+        <div class="flip-panel">
+            <div class="digit-row">
+                <div class="digit-group">
+                    <span class="digit" id="w-hh">00</span>
+                    <span class="digit-unit">hr</span>
+                </div>
+                <div class="digit-group">
+                    <span class="digit" id="w-mm">00</span>
+                    <span class="digit-unit">min</span>
+                </div>
+                <div class="digit-group">
+                    <span class="digit" id="w-ss">00</span>
+                </div>
+            </div>
+        </div>
+        <div class="scene-sub" id="waitSub"></div>
+    </div>
+
+    <!-- End -->
+    <div class="scene" id="endScene">
+        <div class="end-text" id="endText">THE END</div>
+    </div>
+
+    <!-- Stage Message -->
+    <div class="scene" id="msgScene">
+        <div class="msg-text msg-xs" id="msgText"></div>
+        <div class="msg-countdown" id="msgCountdown"></div>
+        <div class="msg-progress"><div class="msg-progress-fill" id="msgFill"></div></div>
+    </div>
+
+    <!-- Mini timer -->
+    <div class="mini-timer" id="miniTimer">
+        <div class="mini-label" id="miniLabel"></div>
+        <div class="mini-time" id="miniTime"></div>
     </div>
 
     <!-- Queued banner -->
     <div class="queued-banner" id="queuedBanner">
-        <span class="label">Up Next</span>
-        <span id="queuedName"></span>
-        <span id="queuedCountdown"></span>
+        <span class="q-label">Next</span>
+        <span id="queuedInfo"></span>
     </div>
 
-    <!-- Progress bar -->
-    <div class="progress-bar-container">
-        <div class="progress-fill" id="progressBar"></div>
-    </div>
-
-    <!-- End overlay -->
-    <div class="end-overlay" id="endOverlay">
-        <div class="end-text">THE END</div>
-    </div>
-
-    <!-- Stage message overlay -->
-    <div class="msg-overlay" id="stageMessageOverlay">
-        <div class="msg-text" id="stageMessageText"></div>
-        <div class="msg-timer" id="messageTimeRemaining"></div>
-        <div class="msg-bar"><div class="msg-bar-fill" id="messageTimerFill"></div></div>
-    </div>
-
-    <!-- Minimized timer -->
-    <div class="mini-timer" id="minimizedTimer">
-        <div class="label" id="minimizedActivity"></div>
-        <div class="time" id="minimizedTime">00:00</div>
-    </div>
+    <!-- Progress -->
+    <div class="progress"><div class="fill" id="progressFill"></div></div>
 
     <script>
-        let waitingForStart = false;
-        let scheduledStartTime = '';
-        let waitingProgramName = '';
-        let showingEndScreen = false;
-        let endScreenTimer = null;
-        let totalProgramSeconds = 0;
+    (() => {
+        let totalSec = 0;
+        let endTimer = null;
+        let showingEnd = false;
+        let currentTheme = '';
+        let currentFont = '';
+        const pad = n => String(n).padStart(2, '0');
 
-        function updateCurrentTime() {
-            const now = new Date();
-            const h = now.getHours().toString().padStart(2, '0');
-            const m = now.getMinutes().toString().padStart(2, '0');
-            document.getElementById('clockTime').textContent = h + ':' + m;
-            const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            document.getElementById('clockDate').textContent = now.toLocaleDateString('en-US', opts);
+        function showScene(id) {
+            document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
         }
 
-        function checkStageMessage() {
-            fetch('/api/stage_message').then(r => r.json()).then(data => {
-                const overlay = document.getElementById('stageMessageOverlay');
-                const mini = document.getElementById('minimizedTimer');
-                if (data.has_message && data.message && !data.expired) {
-                    if (!overlay.classList.contains('show')) {
-                        overlay.classList.remove('hiding');
-                        overlay.classList.add('show');
-                        mini.classList.add('show');
-                    }
-                    document.getElementById('stageMessageText').textContent = data.message;
-                    fetch('/api/timer_status').then(r => r.json()).then(t => {
-                        document.getElementById('minimizedActivity').textContent = t.current_activity || '';
-                        document.getElementById('minimizedTime').textContent = t.time_remaining || '00:00';
+        function applyTheme(theme) {
+            if (theme === currentTheme) return;
+            currentTheme = theme;
+            rebuildBodyClass();
+        }
+
+        function applyFont(font) {
+            if (font === currentFont) return;
+            currentFont = font;
+            rebuildBodyClass();
+        }
+
+        function rebuildBodyClass() {
+            document.body.className = '';
+            if (currentTheme && currentTheme !== 'flip') {
+                document.body.classList.add('theme-' + currentTheme);
+            }
+            if (currentFont && currentFont !== 'inter') {
+                document.body.classList.add('font-' + currentFont);
+            }
+        }
+
+        function updateClock() {
+            const now = new Date();
+            document.getElementById('idleClock').textContent = pad(now.getHours()) + ':' + pad(now.getMinutes());
+            document.getElementById('idleDate').textContent = now.toLocaleDateString('en-US', {
+                weekday: 'long', month: 'long', day: 'numeric'
+            });
+        }
+
+        function parseSecs(t) {
+            if (!t || !t.includes(':')) return 0;
+            const p = t.split(':').map(Number);
+            return p.length === 3 ? p[0]*3600+p[1]*60+p[2] : p[0]*60+p[1];
+        }
+
+        function countdownTo(timeStr) {
+            const p = timeStr.split(':');
+            if (p.length !== 2) return 0;
+            const now = new Date(), t = new Date();
+            t.setHours(+p[0], +p[1], 0, 0);
+            return Math.max(0, Math.floor((t - now) / 1000));
+        }
+
+        function setDigits(prefix, secs, showHours) {
+            const h = Math.floor(secs / 3600);
+            const m = Math.floor((secs % 3600) / 60);
+            const s = secs % 60;
+
+            if (showHours) {
+                const hEl = document.getElementById(prefix + '-hh');
+                if (hEl) hEl.textContent = pad(h);
+            }
+            document.getElementById(prefix + '-mm').textContent = pad(showHours ? m : Math.floor(secs / 60));
+            document.getElementById(prefix + '-ss').textContent = pad(s);
+        }
+
+        function updateDigitLayout(secs) {
+            // For timer: show HH:MM:SS if >= 1 hour, else MM:SS
+            const row = document.getElementById('digitRow');
+            const h = Math.floor(secs / 3600);
+            const m = Math.floor((secs % 3600) / 60);
+            const s = secs % 60;
+
+            if (h > 0) {
+                row.innerHTML = `
+                    <div class="digit-group">
+                        <span class="digit" id="d-hh">${pad(h)}</span>
+                        <span class="digit-unit">hr</span>
+                    </div>
+                    <div class="digit-group">
+                        <span class="digit" id="d-mm">${pad(m)}</span>
+                        <span class="digit-unit">min</span>
+                    </div>
+                    <div class="digit-group">
+                        <span class="digit" id="d-ss">${pad(s)}</span>
+                    </div>`;
+            } else {
+                row.innerHTML = `
+                    <div class="digit-group">
+                        <span class="digit" id="d-mm">${pad(m)}</span>
+                        <span class="digit-sep">:</span>
+                    </div>
+                    <div class="digit-group">
+                        <span class="digit" id="d-ss">${pad(s)}</span>
+                    </div>`;
+            }
+        }
+
+        function checkMessage() {
+            fetch('/api/stage_message').then(r=>r.json()).then(d => {
+                const mini = document.getElementById('miniTimer');
+                if (d.has_message && d.message && !d.expired) {
+                    showScene('msgScene');
+                    const msgEl = document.getElementById('msgText');
+                    msgEl.textContent = d.message;
+
+                    // Auto-size class based on length
+                    msgEl.className = 'msg-text';
+                    const len = d.message.length;
+                    if (len <= 20) msgEl.classList.add('msg-xs');
+                    else if (len <= 50) msgEl.classList.add('msg-sm');
+                    else if (len <= 80) msgEl.classList.add('msg-md');
+                    else msgEl.classList.add('msg-lg');
+
+                    mini.classList.add('show');
+
+                    const rem = Math.max(0, new Date(d.end_time) - new Date());
+                    const s = Math.floor(rem / 1000);
+                    document.getElementById('msgCountdown').textContent =
+                        Math.floor(s / 60) + ':' + pad(s % 60);
+                    document.getElementById('msgFill').style.width =
+                        (rem / (d.duration_seconds * 1000) * 100) + '%';
+
+                    fetch('/api/timer_status').then(r=>r.json()).then(t => {
+                        document.getElementById('miniLabel').textContent = t.current_activity || '';
+                        document.getElementById('miniTime').textContent = t.time_remaining || '00:00';
                     });
-                    const now = new Date();
-                    const end = new Date(data.end_time);
-                    const total = data.duration_seconds * 1000;
-                    const remaining = Math.max(0, end - now);
-                    const secs = Math.floor(remaining / 1000);
-                    document.getElementById('messageTimeRemaining').textContent =
-                        Math.floor(secs / 60) + ':' + (secs % 60).toString().padStart(2, '0');
-                    document.getElementById('messageTimerFill').style.width = (remaining / total * 100) + '%';
-                    if (remaining <= 0) hideStageMessage();
+
+                    if (rem <= 0) dismissMsg();
                 } else {
-                    hideStageMessage();
+                    dismissMsg();
                 }
             }).catch(() => {});
         }
 
-        function hideStageMessage() {
-            const overlay = document.getElementById('stageMessageOverlay');
-            const mini = document.getElementById('minimizedTimer');
-            if (overlay.classList.contains('show')) {
-                overlay.classList.add('hiding');
-                setTimeout(() => overlay.classList.remove('show', 'hiding'), 400);
-                mini.classList.remove('show');
-            }
+        function dismissMsg() {
+            // Remove message scene so updateDisplay takes over on next tick
+            document.getElementById('msgScene').classList.remove('active');
+            document.getElementById('miniTimer').classList.remove('show');
         }
 
         function updateDisplay() {
-            fetch('/api/countdown_timer').then(r => r.json()).then(cd => {
-                if (cd.is_active) { displayCountdownTimer(cd); return; }
-                fetch('/api/timer_status').then(r => r.json()).then(displayRegularTimer);
+            // Don't override active message - checkMessage handles dismissal
+            if (document.getElementById('msgScene').classList.contains('active')) return;
+
+            fetch('/api/countdown_timer').then(r=>r.json()).then(cd => {
+                if (cd.is_active) { renderCountdown(cd); return; }
+                fetch('/api/timer_status').then(r=>r.json()).then(renderTimer);
             });
         }
 
-        function displayCountdownTimer(cd) {
-            const clockView = document.getElementById('clockView');
-            const normalView = document.getElementById('normalView');
-            const waitingView = document.getElementById('waitingView');
-            const endOverlay = document.getElementById('endOverlay');
+        function renderCountdown(cd) {
+            const scene = document.getElementById('timerScene');
+            const panel = document.getElementById('flipPanel');
+            const upDisplay = document.getElementById('timeUpDisplay');
 
-            clockView.classList.add('hidden');
-            waitingView.classList.remove('active');
-            normalView.style.display = 'flex';
+            scene.classList.remove('state-warning', 'state-critical');
 
-            document.getElementById('activityName').textContent = cd.name || 'COUNTDOWN';
+            document.getElementById('activityLabel').textContent = cd.name || 'COUNTDOWN';
+            document.getElementById('activitySub').textContent = '';
 
             if (cd.is_expired) {
-                document.getElementById('hours').textContent = '00';
-                document.getElementById('minutes').textContent = '00';
-                document.getElementById('seconds').textContent = '00';
-                endOverlay.style.display = 'flex';
-                document.querySelector('.end-text').textContent = 'TIME UP';
+                panel.style.display = 'none';
+                upDisplay.classList.add('show');
+                showScene('timerScene');
             } else {
-                const parts = (cd.time_remaining || '00:00:00').split(':');
-                if (parts.length === 3) {
-                    document.getElementById('hours').textContent = parts[0].padStart(2, '0');
-                    document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
-                    document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
+                panel.style.display = '';
+                upDisplay.classList.remove('show');
 
-                    const total = (parseInt(parts[0])||0)*3600 + (parseInt(parts[1])||0)*60 + (parseInt(parts[2])||0);
-                    const ctr = document.getElementById('countdown');
-                    ctr.classList.remove('warn-orange', 'warn-red');
-                    if (total <= 10) ctr.classList.add('warn-red');
-                    else if (total <= 60) ctr.classList.add('warn-orange');
-                }
-                endOverlay.style.display = 'none';
+                const secs = parseSecs(cd.time_remaining);
+                updateDigitLayout(secs);
+                showScene('timerScene');
+
+                if (secs <= 10) scene.classList.add('state-critical');
+                else if (secs <= 60) scene.classList.add('state-warning');
             }
         }
 
-        function displayRegularTimer(data) {
-            const clockView = document.getElementById('clockView');
-            const normalView = document.getElementById('normalView');
-            const waitingView = document.getElementById('waitingView');
-            const endOverlay = document.getElementById('endOverlay');
-            const progressBar = document.getElementById('progressBar');
+        function renderTimer(data) {
+            const fill = document.getElementById('progressFill');
+            const scene = document.getElementById('timerScene');
+            const banner = document.getElementById('queuedBanner');
+            const panel = document.getElementById('flipPanel');
+            const upDisplay = document.getElementById('timeUpDisplay');
 
-            // Waiting state
+            // Apply theme and font
+            if (data.kiosk_theme) applyTheme(data.kiosk_theme);
+            if (data.kiosk_font) applyFont(data.kiosk_font);
+
+            // Waiting
             if (data.waiting_for_start && !data.is_running) {
-                clockView.classList.add('hidden');
-                normalView.style.display = 'none';
-                waitingView.classList.add('active');
-
-                document.getElementById('waitingProgramName').textContent = data.waiting_program_name || '';
-                document.getElementById('waitingTime').textContent = 'Starts at ' + (data.scheduled_start_time || '');
-
+                showScene('waitScene');
+                document.getElementById('waitLabel').textContent =
+                    (data.waiting_program_name || '') + ' \u2022 STARTING IN';
                 if (data.scheduled_start_time) {
-                    const parts = data.scheduled_start_time.split(':');
-                    if (parts.length === 2) {
-                        const now = new Date(), target = new Date();
-                        target.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
-                        const diff = Math.max(0, Math.floor((target - now) / 1000));
-                        const pad = n => String(n).padStart(2, '0');
-                        document.getElementById('waitingCountdown').textContent =
-                            pad(Math.floor(diff/3600)) + ':' + pad(Math.floor((diff%3600)/60)) + ':' + pad(diff%60);
-                    }
+                    const secs = countdownTo(data.scheduled_start_time);
+                    setDigits('w', secs, true);
+                    document.getElementById('waitSub').textContent = 'Starts at ' + data.scheduled_start_time;
                 }
-
-                endOverlay.style.display = 'none';
-                progressBar.style.width = '100%';
-                progressBar.className = 'progress-fill';
-                showingEndScreen = false;
-                if (endScreenTimer) clearTimeout(endScreenTimer);
+                fill.style.width = '100%';
+                fill.classList.remove('warn', 'crit');
+                showingEnd = false;
+                if (endTimer) { clearTimeout(endTimer); endTimer = null; }
+                banner.classList.remove('active');
                 return;
-            } else {
-                waitingView.classList.remove('active');
             }
 
             // Queued banner
-            const queuedBanner = document.getElementById('queuedBanner');
             const qp = data.queued_program;
             if (qp && qp.has_queued && data.is_running) {
-                queuedBanner.classList.add('active');
-                document.getElementById('queuedName').textContent = qp.program_name;
-                const parts = qp.scheduled_start_time.split(':');
-                if (parts.length === 2) {
-                    const now = new Date(), target = new Date();
-                    target.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
-                    const diff = Math.max(0, Math.floor((target - now) / 1000));
-                    const pad = n => String(n).padStart(2, '0');
-                    document.getElementById('queuedCountdown').textContent =
-                        'in ' + pad(Math.floor(diff/3600)) + ':' + pad(Math.floor((diff%3600)/60)) + ':' + pad(diff%60);
-                }
+                banner.classList.add('active');
+                const diff = countdownTo(qp.scheduled_start_time);
+                const h = Math.floor(diff/3600), m = Math.floor((diff%3600)/60), s = diff%60;
+                document.getElementById('queuedInfo').textContent =
+                    qp.program_name + ' in ' + pad(h) + ':' + pad(m) + ':' + pad(s);
             } else {
-                queuedBanner.classList.remove('active');
+                banner.classList.remove('active');
             }
 
-            // Running or stopped
-            if (data.is_running) {
-                clockView.classList.add('hidden');
-                normalView.style.display = 'flex';
-            } else {
-                clockView.classList.remove('hidden');
-                normalView.style.display = 'none';
+            if (!data.is_running) {
+                showScene('idleScene');
+                fill.style.width = '100%';
+                fill.classList.remove('warn', 'crit');
+                scene.classList.remove('state-warning', 'state-critical');
+                showingEnd = false;
+                totalSec = 0;
+                if (endTimer) { clearTimeout(endTimer); endTimer = null; }
+                return;
             }
 
-            document.getElementById('activityName').textContent = data.current_activity || 'READY';
+            // Running
+            const secs = parseSecs(data.time_remaining);
+            if (!data.is_paused && (totalSec === 0 || secs > totalSec)) totalSec = secs;
 
-            // Parse time
-            let timeText = data.time_remaining || '00:00:00';
-            let totalSeconds = 0;
-            if (timeText.includes(':')) {
-                const parts = timeText.split(':');
-                if (parts.length === 3) {
-                    totalSeconds = (parseInt(parts[0])||0)*3600 + (parseInt(parts[1])||0)*60 + (parseInt(parts[2])||0);
-                    document.getElementById('hours').textContent = parts[0].padStart(2, '0');
-                    document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
-                    document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
-                } else if (parts.length === 2) {
-                    totalSeconds = (parseInt(parts[0])||0)*60 + (parseInt(parts[1])||0);
-                    document.getElementById('hours').textContent = '00';
-                    document.getElementById('minutes').textContent = parts[0].padStart(2, '0');
-                    document.getElementById('seconds').textContent = parts[1].padStart(2, '0');
-                }
-            }
+            document.getElementById('activityLabel').textContent = data.current_activity || 'READY';
+            document.getElementById('activitySub').textContent = data.is_paused ? 'PAUSED' : '';
 
-            // TIME UP logic
-            const countdown = document.getElementById('countdown');
-            const timeUp = document.getElementById('timeUpMessage');
-
-            if (data.is_running && !data.is_paused) {
-                if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds)
-                    totalProgramSeconds = totalSeconds;
-            }
-
+            // TIME UP check
             let showTimeUp = false;
-            if (data.is_running && !data.is_paused && totalProgramSeconds > 0) {
-                showTimeUp = totalProgramSeconds >= 1800
-                    ? (totalSeconds <= 120 && totalSeconds > 0)
-                    : (totalSeconds <= 60 && totalSeconds > 0);
+            if (!data.is_paused && totalSec > 0) {
+                showTimeUp = totalSec >= 1800 ? (secs <= 120 && secs > 0) : (secs <= 60 && secs > 0);
             }
 
             if (showTimeUp) {
-                countdown.style.display = 'none';
-                timeUp.classList.add('show');
+                panel.style.display = 'none';
+                upDisplay.classList.add('show');
             } else {
-                countdown.style.display = 'flex';
-                timeUp.classList.remove('show');
+                panel.style.display = '';
+                upDisplay.classList.remove('show');
+                updateDigitLayout(secs);
             }
 
-            if (data.is_running) {
-                if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds)
-                    totalProgramSeconds = totalSeconds;
+            showScene('timerScene');
 
-                let pct = totalProgramSeconds > 0 ? (totalSeconds / totalProgramSeconds) * 100 : 0;
-                pct = Math.max(0, Math.min(100, pct));
-                progressBar.style.width = pct + '%';
-
-                // End of program
-                if (totalSeconds <= 0 && data.current_activity && data.current_activity !== 'READY') {
-                    if (!showingEndScreen) {
-                        showingEndScreen = true;
-                        endOverlay.style.display = 'flex';
-                        document.querySelector('.end-text').textContent = 'THE END';
-                        totalProgramSeconds = 0;
-                        if (endScreenTimer) clearTimeout(endScreenTimer);
-                        endScreenTimer = setTimeout(() => {
-                            showingEndScreen = false;
-                            endOverlay.style.display = 'none';
-                        }, 300000);
-                    }
-                    return;
-                } else {
-                    showingEndScreen = false;
-                    endOverlay.style.display = 'none';
-                    if (endScreenTimer) clearTimeout(endScreenTimer);
+            // End of program
+            if (secs <= 0 && data.current_activity && data.current_activity !== 'READY') {
+                if (!showingEnd) {
+                    showingEnd = true;
+                    document.getElementById('endText').textContent = 'THE END';
+                    showScene('endScene');
+                    totalSec = 0;
+                    if (endTimer) clearTimeout(endTimer);
+                    endTimer = setTimeout(() => { showingEnd = false; }, 300000);
                 }
-
-                // Warning states
-                countdown.classList.remove('warn-orange', 'warn-red');
-                progressBar.classList.remove('warn-orange', 'warn-red');
-                if (totalSeconds <= 60) {
-                    countdown.classList.add('warn-red');
-                    progressBar.classList.add('warn-red');
-                } else if (pct <= 10) {
-                    countdown.classList.add('warn-orange');
-                    progressBar.classList.add('warn-orange');
-                }
+                return;
             } else {
-                countdown.classList.remove('warn-orange', 'warn-red');
-                progressBar.classList.remove('warn-orange', 'warn-red');
-                endOverlay.style.display = 'none';
-                showingEndScreen = false;
-                totalProgramSeconds = 0;
-                progressBar.style.width = '100%';
-                if (endScreenTimer) clearTimeout(endScreenTimer);
+                showingEnd = false;
+                if (endTimer) { clearTimeout(endTimer); endTimer = null; }
+            }
+
+            // Progress & warnings
+            let pct = totalSec > 0 ? (secs / totalSec) * 100 : 0;
+            pct = Math.max(0, Math.min(100, pct));
+            fill.style.width = pct + '%';
+
+            scene.classList.remove('state-warning', 'state-critical');
+            fill.classList.remove('warn', 'crit');
+
+            if (secs <= 60) {
+                scene.classList.add('state-critical');
+                fill.classList.add('crit');
+            } else if (pct <= 10) {
+                scene.classList.add('state-warning');
+                fill.classList.add('warn');
             }
         }
 
-        updateCurrentTime();
-        setInterval(updateCurrentTime, 1000);
+        // Fetch initial theme + font
+        fetch('/api/kiosk_theme').then(r=>r.json()).then(d => {
+            applyTheme(d.theme);
+            applyFont(d.font);
+        }).catch(()=>{});
+
+        // Boot
+        updateClock();
+        setInterval(updateClock, 1000);
         updateDisplay();
         setInterval(updateDisplay, 1000);
-        checkStageMessage();
-        setInterval(checkStageMessage, 2000);
-
+        checkMessage();
+        setInterval(checkMessage, 2000);
         document.addEventListener('visibilitychange', () => {
-            if (!document.hidden) { updateCurrentTime(); updateDisplay(); checkStageMessage(); }
+            if (!document.hidden) { updateClock(); updateDisplay(); checkMessage(); }
         });
+    })();
     </script>
 </body>
 </html>

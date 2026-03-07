@@ -32,6 +32,37 @@ queued_program = {
     'scheduled_start_time': ''
 }
 
+# Kiosk theme and font (loaded from DB on startup)
+kiosk_theme = 'flip'
+kiosk_font = 'inter'
+
+def load_kiosk_settings():
+    """Load persisted theme/font from database"""
+    global kiosk_theme, kiosk_font
+    try:
+        conn = init_database()
+        c = conn.cursor()
+        c.execute('SELECT theme, font FROM kiosk_settings WHERE id = 1')
+        row = c.fetchone()
+        conn.close()
+        if row:
+            kiosk_theme = row[0]
+            kiosk_font = row[1]
+            print(f"[SETTINGS] Loaded theme={kiosk_theme}, font={kiosk_font}")
+    except Exception as e:
+        print(f"[SETTINGS] Could not load settings: {e}")
+
+def save_kiosk_settings():
+    """Persist current theme/font to database"""
+    try:
+        conn = init_database()
+        c = conn.cursor()
+        c.execute('UPDATE kiosk_settings SET theme = ?, font = ? WHERE id = 1', (kiosk_theme, kiosk_font))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"[SETTINGS] Could not save settings: {e}")
+
 # Countdown timer state
 countdown_timer = {
     'is_active': False,
@@ -1028,6 +1059,51 @@ def create_activity():
         conn.close()
         return jsonify({'error': 'Activity name already exists'}), 400
 
+@app.route('/api/activities/<int:activity_id>', methods=['PUT'])
+def update_activity(activity_id):
+    data = request.json
+    name = data.get('name')
+    default_duration = data.get('default_duration', 5)
+    description = data.get('description', '')
+
+    if not name:
+        return jsonify({'error': 'Activity name is required'}), 400
+
+    conn = init_database()
+    c = conn.cursor()
+
+    c.execute('UPDATE activities SET name = ?, default_duration = ?, description = ? WHERE id = ?',
+              (name, default_duration, description, activity_id))
+
+    if c.rowcount == 0:
+        conn.close()
+        return jsonify({'error': 'Activity not found'}), 404
+
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/activities/<int:activity_id>', methods=['DELETE'])
+def delete_activity(activity_id):
+    conn = init_database()
+    c = conn.cursor()
+
+    # Check if activity is used in any schedule
+    c.execute('SELECT COUNT(*) FROM program_schedules WHERE activity_id = ?', (activity_id,))
+    count = c.fetchone()[0]
+    if count > 0:
+        conn.close()
+        return jsonify({'error': f'Activity is used in {count} program schedule(s). Remove it from schedules first.'}), 400
+
+    c.execute('DELETE FROM activities WHERE id = ?', (activity_id,))
+    if c.rowcount == 0:
+        conn.close()
+        return jsonify({'error': 'Activity not found'}), 404
+
+    conn.commit()
+    conn.close()
+    return jsonify({'status': 'success'})
+
 # API Routes for Program Schedule Management
 @app.route('/api/programs/<int:program_id>/schedule', methods=['POST'])
 def add_to_schedule(program_id):
@@ -1301,7 +1377,10 @@ def send_stage_message():
         
         if not message:
             return jsonify({'error': 'Message cannot be empty'}), 400
-        
+
+        # Truncate to 100 chars for visibility
+        message = message[:100]
+
         # Limit duration to 5 minutes (300 seconds)
         duration = min(max(duration, 10), 300)
         
@@ -1465,16 +1544,100 @@ def stop_countdown_timer():
         print(f"Error stopping countdown timer: {e}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/reset_screen', methods=['POST'])
+def reset_screen():
+    """Master reset - stop everything and return kiosk to idle clock"""
+    global live_schedule_override, queued_program
+
+    conn = init_database()
+    c = conn.cursor()
+
+    # Stop any running program
+    c.execute('''UPDATE current_state
+                 SET is_running = FALSE, is_paused = FALSE,
+                     current_program_id = NULL, current_schedule_id = NULL,
+                     manual_override = FALSE
+                 WHERE id = 1''')
+
+    # Deactivate stage messages
+    c.execute('UPDATE stage_messages SET is_active = FALSE WHERE is_active = TRUE')
+
+    # Deactivate countdown timers
+    c.execute('UPDATE countdown_timers SET is_active = FALSE WHERE is_active = TRUE')
+
+    conn.commit()
+    conn.close()
+
+    # Clear all in-memory state
+    live_schedule_override = None
+
+    current_timer.update({
+        'current_activity': '',
+        'time_remaining': '00:00',
+        'is_running': False,
+        'is_paused': False,
+        'total_duration': 0,
+        'end_time': None,
+        'waiting_for_start': False,
+        'scheduled_start_time': '',
+        'waiting_program_name': ''
+    })
+
+    queued_program.update({
+        'has_queued': False,
+        'program_id': None,
+        'program_name': '',
+        'scheduled_start_time': ''
+    })
+
+    countdown_timer.update({
+        'is_active': False,
+        'name': '',
+        'target_time': None,
+        'time_remaining': '',
+        'is_expired': False,
+        'timer_type': 'duration'
+    })
+
+    print("[RESET] Screen reset to idle")
+    return jsonify({'status': 'success', 'message': 'Screen reset to idle'})
+
+@app.route('/api/kiosk_theme', methods=['GET'])
+def get_kiosk_theme():
+    return jsonify({'theme': kiosk_theme, 'font': kiosk_font})
+
+@app.route('/api/kiosk_theme', methods=['POST'])
+def set_kiosk_theme():
+    global kiosk_theme, kiosk_font
+    data = request.json
+    theme = data.get('theme')
+    font = data.get('font')
+    if theme:
+        if theme not in ('flip', 'minimal', 'neon', 'warm'):
+            return jsonify({'error': 'Invalid theme'}), 400
+        kiosk_theme = theme
+        print(f"[THEME] Kiosk theme changed to: {theme}")
+    if font:
+        if font not in ('inter', 'oswald', 'bebas', 'orbitron', 'mono', 'jetbrains'):
+            return jsonify({'error': 'Invalid font'}), 400
+        kiosk_font = font
+        print(f"[FONT] Kiosk font changed to: {font}")
+    save_kiosk_settings()
+    return jsonify({'status': 'success', 'theme': kiosk_theme, 'font': kiosk_font})
+
 @app.route('/api/timer_status')
 def timer_status():
     # Include waiting state and queue information in the response
     response_data = current_timer.copy()
     response_data['queued_program'] = queued_program.copy()
+    response_data['kiosk_theme'] = kiosk_theme
+    response_data['kiosk_font'] = kiosk_font
     return jsonify(response_data)
 
 if __name__ == '__main__':
     from database import init_db
     init_db()
+    load_kiosk_settings()
 
     # Start background threads AFTER database is initialized
     timer_thread = threading.Thread(target=update_timer_display, daemon=True)

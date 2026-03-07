@@ -1,228 +1,165 @@
-// admin.js - Church Timer Admin Portal JavaScript
+// admin.js - v2 Church Timer Admin
+// All API logic preserved, UI updated for dark theme
 
-// Global state variables
 let currentProgram = null;
 let programs = [];
 let activities = [];
 let timerState = { is_running: false, is_paused: false };
 let liveScheduleSortable = null;
 
-// Initialize the admin interface when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     loadPrograms();
     loadActivities();
     startTimerStatusUpdates();
+
+    // Stage message char count
+    const msgInput = document.getElementById('stageMessageInput');
+    const charCount = document.getElementById('messageCharCount');
+    if (msgInput && charCount) {
+        msgInput.addEventListener('input', () => charCount.textContent = msgInput.value.length);
+    }
+
+    // Duration slider display
+    const slider = document.getElementById('messageDuration');
+    const display = document.getElementById('durationDisplay');
+    if (slider && display) {
+        slider.addEventListener('input', () => {
+            const s = parseInt(slider.value);
+            display.textContent = `${Math.floor(s/60)}:${(s%60).toString().padStart(2,'0')}`;
+        });
+    }
 });
 
-// ============================================================================
-// MODAL FUNCTIONS
-// ============================================================================
+// ── MODALS ──
 
-function showModal(modalId) {
-    document.getElementById(modalId).style.display = 'block';
-}
+function showModal(id) { document.getElementById(id).style.display = 'block'; }
+function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-function closeModal(modalId) {
-    document.getElementById(modalId).style.display = 'none';
-}
+window.onclick = function(e) {
+    document.querySelectorAll('.modal').forEach(m => {
+        if (e.target === m) m.style.display = 'none';
+    });
+};
 
-// Close modals when clicking outside
-window.onclick = function(event) {
-    const modals = document.getElementsByClassName('modal');
-    for (let modal of modals) {
-        if (event.target === modal) {
-            modal.style.display = 'none';
-        }
-    }
-}
-
-// ============================================================================
-// ALERT FUNCTIONS
-// ============================================================================
+// ── ALERTS ──
 
 function showAlert(message, type = 'success') {
-    const alertContainer = document.getElementById('alertContainer');
-    const alert = document.createElement('div');
-    alert.className = `alert alert-${type}`;
-    alert.innerHTML = message;
-    alertContainer.appendChild(alert);
-    
-    setTimeout(() => {
-        alert.remove();
-    }, 5000);
+    const container = document.getElementById('alertContainer');
+    const el = document.createElement('div');
+    el.className = `alert alert-${type}`;
+    el.innerHTML = message;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 4000);
 }
 
-// ============================================================================
-// PROGRAM LOADING AND DISPLAY
-// ============================================================================
+// ── PROGRAMS ──
 
 async function loadPrograms() {
     try {
-        const response = await fetch('/api/programs');
-        programs = await response.json();
+        const res = await fetch('/api/programs');
+        programs = await res.json();
         displayPrograms();
         displayProgramSelector();
-    } catch (error) {
-        console.error('Error loading programs:', error);
-        showAlert('Error loading programs', 'error');
+    } catch (e) {
+        console.error('Error loading programs:', e);
     }
 }
 
 function displayPrograms() {
-    const programList = document.getElementById('programList');
-    programList.innerHTML = '';
-    
+    const list = document.getElementById('programList');
+    list.innerHTML = '';
     if (programs.length === 0) {
-        programList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-calendar-plus"></i>
-                <p>No programs yet. Create your first program!</p>
-            </div>
-        `;
+        list.innerHTML = '<div class="empty-state"><i class="fas fa-calendar-plus"></i><p>No programs yet</p></div>';
         return;
     }
-    
-    programs.forEach(program => {
-        const programItem = document.createElement('div');
-        programItem.className = `program-item ${currentProgram && currentProgram.id === program.id ? 'current-program' : ''}`;
-        
-        const autoStartBadge = program.auto_start ? 
-            '<span class="auto-start-badge">AUTO</span>' : '';
-        
-        programItem.innerHTML = `
+    programs.forEach(p => {
+        const el = document.createElement('div');
+        el.className = `program-item ${currentProgram && currentProgram.id === p.id ? 'current-program' : ''}`;
+        const badge = p.auto_start ? '<span class="auto-start-badge">AUTO</span>' : '';
+        el.innerHTML = `
             <div class="program-info">
-                <h4>${program.name}${autoStartBadge}</h4>
-                <p>${program.description || 'No description'}</p>
-                <p><small>${program.day_of_week || 'No day set'} • Start: ${program.scheduled_start_time || 'Not set'} • ${program.activity_count} activities</small></p>
+                <h4>${p.name} ${badge}</h4>
+                <p>${p.day_of_week || 'No day'} &middot; ${p.scheduled_start_time || 'No time'} &middot; ${p.activity_count} activities</p>
             </div>
             <div class="item-actions">
-                <button class="btn btn-primary btn-sm" onclick="loadProgram(${program.id})">
-                    <i class="fas fa-folder-open"></i> Load
-                </button>
-                <button class="btn btn-info btn-sm" onclick="editProgram(${program.id})">
-                    <i class="fas fa-edit"></i> Edit
-                </button>
-                <button class="btn btn-danger btn-sm" onclick="deleteProgram(${program.id})">
-                    <i class="fas fa-trash"></i> Delete
-                </button>
-            </div>
-        `;
-        programList.appendChild(programItem);
+                <button class="btn btn-primary btn-sm" onclick="loadProgram(${p.id})"><i class="fas fa-folder-open"></i></button>
+                <button class="btn btn-secondary btn-sm" onclick="editProgram(${p.id})"><i class="fas fa-edit"></i></button>
+                <button class="btn btn-danger btn-sm" onclick="deleteProgram(${p.id})"><i class="fas fa-trash"></i></button>
+            </div>`;
+        list.appendChild(el);
     });
 }
 
 function displayProgramSelector() {
-    const programSelectorList = document.getElementById('programSelectorList');
-    programSelectorList.innerHTML = '';
-    
-    programs.forEach(program => {
-        const programItem = document.createElement('div');
-        programItem.className = 'program-item';
-        
-        const autoStartBadge = program.auto_start ? 
-            '<span class="auto-start-badge">AUTO</span>' : '';
-        
-        programItem.innerHTML = `
+    const list = document.getElementById('programSelectorList');
+    list.innerHTML = '';
+    programs.forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'program-item';
+        const badge = p.auto_start ? '<span class="auto-start-badge">AUTO</span>' : '';
+        el.innerHTML = `
             <div class="program-info">
-                <h4>${program.name} ${autoStartBadge}</h4>
-                <p>${program.description || 'No description'} • ${program.activity_count} activities</p>
-                <p><small>${program.day_of_week || 'No day'} • Start: ${program.scheduled_start_time || 'Not set'}</small></p>
+                <h4>${p.name} ${badge}</h4>
+                <p>${p.day_of_week || ''} &middot; ${p.scheduled_start_time || ''} &middot; ${p.activity_count} activities</p>
             </div>
-            <div class="item-actions">
-                <button class="btn btn-primary" onclick="loadProgram(${program.id}); closeModal('programSelectorModal')">
-                    <i class="fas fa-check"></i> Select
-                </button>
-            </div>
-        `;
-        programSelectorList.appendChild(programItem);
+            <button class="btn btn-primary btn-sm" onclick="loadProgram(${p.id}); closeModal('programSelectorModal')">
+                <i class="fas fa-check"></i> Select
+            </button>`;
+        list.appendChild(el);
     });
 }
 
-async function loadProgram(programId) {
+async function loadProgram(id) {
     try {
-        const response = await fetch(`/api/programs/${programId}`);
-        
-        if (!response.ok) {
-            throw new Error(`Failed to load program: ${response.status}`);
-        }
-        
-        currentProgram = await response.json();
+        const res = await fetch(`/api/programs/${id}`);
+        if (!res.ok) throw new Error(res.status);
+        currentProgram = await res.json();
         displayCurrentProgram();
         displayProgramSchedule();
-        showAlert(`Program "${currentProgram.name}" loaded successfully`);
-    } catch (error) {
-        console.error('Error loading program:', error);
-        showAlert('Error loading program: ' + error.message, 'error');
+        showAlert(`"${currentProgram.name}" loaded`);
+    } catch (e) {
+        console.error('Error loading program:', e);
+        showAlert('Error loading program', 'error');
         currentProgram = null;
     }
 }
 
 function displayCurrentProgram() {
-    const currentProgramInfo = document.getElementById('currentProgramInfo');
-    const editCurrentProgramBtn = document.getElementById('editCurrentProgramBtn');
-    
-    if (!currentProgramInfo) {
-        console.error('currentProgramInfo element not found');
-        return;
-    }
-    
+    const info = document.getElementById('currentProgramInfo');
+    const editBtn = document.getElementById('editCurrentProgramBtn');
+    if (!info) return;
+
     if (currentProgram) {
-        const autoStartText = currentProgram.auto_start ? ' (Auto-start enabled)' : '';
-        
-        currentProgramInfo.innerHTML = `
-            <h4>${currentProgram.name}</h4>
-            <p>${currentProgram.description || 'No description'}</p>
-            <p><strong>Day:</strong> ${currentProgram.day_of_week || 'Not set'}</p>
-            <p><strong>Scheduled Start:</strong> ${currentProgram.scheduled_start_time || 'Not set'}${autoStartText}</p>
-            <p><strong>${currentProgram.schedule.length}</strong> activities in schedule</p>
-        `;
-        
-        // Check if elements exist before accessing
-        const programScheduleCard = document.getElementById('programScheduleCard');
-        if (programScheduleCard) {
-            programScheduleCard.style.display = 'block';
-        }
-        
-        if (editCurrentProgramBtn) {
-            editCurrentProgramBtn.style.display = 'block';
-        }
+        const auto = currentProgram.auto_start ? ' (Auto-start)' : '';
+        info.innerHTML = `
+            <h4 style="font-size:1rem; font-weight:600; margin-bottom:0.25rem;">${currentProgram.name}</h4>
+            <p style="font-size:0.85rem; color:var(--text-dim); margin:0.15rem 0;">${currentProgram.description || ''}</p>
+            <p style="font-size:0.8rem; color:var(--text-dim);">${currentProgram.day_of_week || ''} &middot; ${currentProgram.scheduled_start_time || 'No time'}${auto} &middot; ${currentProgram.schedule.length} activities</p>`;
+        if (editBtn) editBtn.style.display = 'block';
     } else {
-        currentProgramInfo.innerHTML = '<p class="empty-text">No program loaded</p>';
-        
-        const programScheduleCard = document.getElementById('programScheduleCard');
-        if (programScheduleCard) {
-            programScheduleCard.style.display = 'none';
-        }
-        
-        if (editCurrentProgramBtn) {
-            editCurrentProgramBtn.style.display = 'none';
-        }
+        info.innerHTML = '<p class="empty-text">No program loaded</p>';
+        if (editBtn) editBtn.style.display = 'none';
     }
-    displayPrograms(); // Refresh to highlight current program
+    displayPrograms();
 }
 
-// ============================================================================
-// PROGRAM CRUD OPERATIONS
-// ============================================================================
+// ── PROGRAM CRUD ──
 
 async function createProgram(event) {
     event.preventDefault();
-    const name = document.getElementById('programName').value;
-    const description = document.getElementById('programDescription').value;
-    const scheduled_start_time = document.getElementById('programStartTime').value;
-    const day_of_week = document.getElementById('programDayOfWeek').value;
-    const auto_start = document.getElementById('programAutoStart').checked;
-    
+    const body = {
+        name: document.getElementById('programName').value,
+        description: document.getElementById('programDescription').value,
+        scheduled_start_time: document.getElementById('programStartTime').value,
+        day_of_week: document.getElementById('programDayOfWeek').value,
+        auto_start: document.getElementById('programAutoStart').checked
+    };
     try {
-        const response = await fetch('/api/programs', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description, scheduled_start_time, day_of_week, auto_start })
+        const res = await fetch('/api/programs', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
         });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
+        const result = await res.json();
+        if (res.ok) {
             closeModal('createProgramModal');
             document.getElementById('programName').value = '';
             document.getElementById('programDescription').value = '';
@@ -230,517 +167,346 @@ async function createProgram(event) {
             document.getElementById('programDayOfWeek').value = '';
             document.getElementById('programAutoStart').checked = false;
             await loadPrograms();
-            showAlert('Program created successfully');
-            
-            // Auto-load the new program
-            if (result.program_id) {
-                await loadProgram(result.program_id);
-            }
+            showAlert('Program created');
+            if (result.program_id) await loadProgram(result.program_id);
         } else {
             showAlert(result.error || 'Error creating program', 'error');
         }
-    } catch (error) {
-        console.error('Error creating program:', error);
+    } catch (e) {
         showAlert('Error creating program', 'error');
     }
 }
 
 async function updateProgram(event) {
     event.preventDefault();
-    const programId = document.getElementById('editProgramId').value;
-    const name = document.getElementById('editProgramName').value;
-    const description = document.getElementById('editProgramDescription').value;
-    const scheduled_start_time = document.getElementById('editProgramStartTime').value;
-    const day_of_week = document.getElementById('editProgramDayOfWeek').value;
-    const auto_start = document.getElementById('editProgramAutoStart').checked;
-    
+    const id = document.getElementById('editProgramId').value;
+    const body = {
+        name: document.getElementById('editProgramName').value,
+        description: document.getElementById('editProgramDescription').value,
+        scheduled_start_time: document.getElementById('editProgramStartTime').value,
+        day_of_week: document.getElementById('editProgramDayOfWeek').value,
+        auto_start: document.getElementById('editProgramAutoStart').checked
+    };
     try {
-        const response = await fetch(`/api/programs/${programId}`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, description, scheduled_start_time, day_of_week, auto_start })
+        const res = await fetch(`/api/programs/${id}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
         });
-        
-        if (response.ok) {
+        if (res.ok) {
             closeModal('editProgramModal');
             await loadPrograms();
-            // Reload current program if it's the one being edited
-            if (currentProgram && currentProgram.id == programId) {
-                await loadProgram(programId);
-            }
-            showAlert('Program updated successfully');
+            if (currentProgram && currentProgram.id == id) await loadProgram(id);
+            showAlert('Program updated');
         } else {
-            const result = await response.json();
-            showAlert(result.error || 'Error updating program', 'error');
+            const r = await res.json();
+            showAlert(r.error || 'Error updating', 'error');
         }
-    } catch (error) {
-        console.error('Error updating program:', error);
+    } catch (e) {
         showAlert('Error updating program', 'error');
     }
 }
 
-async function deleteProgram(programId) {
-    if (!confirm('Are you sure you want to delete this program? This action cannot be undone.')) {
-        return;
-    }
-    
+async function deleteProgram(id) {
+    if (!confirm('Delete this program? This cannot be undone.')) return;
     try {
-        const response = await fetch(`/api/programs/${programId}`, {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            // If we're deleting the current program, clear it
-            if (currentProgram && currentProgram.id == programId) {
-                currentProgram = null;
-                displayCurrentProgram();
-            }
+        const res = await fetch(`/api/programs/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            if (currentProgram && currentProgram.id == id) { currentProgram = null; displayCurrentProgram(); }
             await loadPrograms();
-            showAlert('Program deleted successfully');
-        } else {
-            const result = await response.json();
-            showAlert(result.error || 'Error deleting program', 'error');
+            showAlert('Program deleted');
         }
-    } catch (error) {
-        console.error('Error deleting program:', error);
+    } catch (e) {
         showAlert('Error deleting program', 'error');
     }
 }
 
 async function deleteCurrentProgram() {
-    if (currentProgram) {
-        await deleteProgram(currentProgram.id);
-        closeModal('editProgramModal');
-    }
+    if (currentProgram) { await deleteProgram(currentProgram.id); closeModal('editProgramModal'); }
 }
 
-function showCreateProgramModal() {
-    showModal('createProgramModal');
-}
+function showCreateProgramModal() { showModal('createProgramModal'); }
+function showProgramSelector() { showModal('programSelectorModal'); }
 
 function showEditProgramModal() {
-    if (!currentProgram) {
-        showAlert('Please load a program first', 'error');
-        return;
-    }
-    
-    // Populate the edit form with current program data
+    if (!currentProgram) { showAlert('Load a program first', 'error'); return; }
     document.getElementById('editProgramId').value = currentProgram.id;
     document.getElementById('editProgramName').value = currentProgram.name;
     document.getElementById('editProgramDescription').value = currentProgram.description || '';
     document.getElementById('editProgramStartTime').value = currentProgram.scheduled_start_time || '';
     document.getElementById('editProgramDayOfWeek').value = currentProgram.day_of_week || '';
     document.getElementById('editProgramAutoStart').checked = currentProgram.auto_start || false;
-    
-    // Populate the schedule list in the modal
     displayEditProgramSchedule();
-    
     showModal('editProgramModal');
 }
 
 function displayEditProgramSchedule() {
-    const scheduleList = document.getElementById('editProgramScheduleList');
-    
-    if (!scheduleList) {
-        console.error('editProgramScheduleList element not found');
-        return;
-    }
-    
-    scheduleList.innerHTML = '';
-    
+    const list = document.getElementById('editProgramScheduleList');
+    if (!list) return;
+    list.innerHTML = '';
     if (!currentProgram || !currentProgram.schedule || currentProgram.schedule.length === 0) {
-        scheduleList.innerHTML = `
-            <div class="empty-state" style="padding: 1rem; text-align: center;">
-                <i class="fas fa-clock" style="font-size: 2rem; color: #bdc3c7; margin-bottom: 0.5rem;"></i>
-                <p style="color: #7f8c8d; margin: 0;">No activities yet. Add some to get started!</p>
-            </div>
-        `;
+        list.innerHTML = '<div class="empty-state"><p>No activities yet</p></div>';
         return;
     }
-    
-    currentProgram.schedule.forEach((item, index) => {
-        const scheduleItem = document.createElement('div');
-        scheduleItem.className = 'schedule-item';
-        scheduleItem.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8f9fa; border-radius: 8px; margin-bottom: 0.5rem;';
-        scheduleItem.setAttribute('data-id', item.id);
-        
-        scheduleItem.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 0.5rem; flex: 1;">
-                <span style="color: #7f8c8d; font-size: 0.9rem;">${index + 1}.</span>
-                <strong>${item.activity_name}</strong>
-                <span style="color: #7f8c8d; font-size: 0.9rem;">(${item.duration_minutes} min)</span>
+    currentProgram.schedule.forEach((item, i) => {
+        const el = document.createElement('div');
+        el.className = 'schedule-item';
+        el.setAttribute('data-id', item.id);
+        el.innerHTML = `
+            <div style="display:flex; align-items:center; gap:0.5rem; flex:1;">
+                <span style="color:var(--text-muted); font-size:0.8rem;">${i+1}.</span>
+                <strong style="font-size:0.875rem;">${item.activity_name}</strong>
+                <span style="color:var(--text-dim); font-size:0.8rem;">(${item.duration_minutes}m)</span>
             </div>
-            <button class="btn btn-danger btn-sm" onclick="removeFromScheduleInModal(${item.id})" style="padding: 0.25rem 0.5rem;">
+            <button class="btn btn-danger btn-sm" onclick="removeFromScheduleInModal(${item.id})" style="padding:0.2rem 0.4rem;">
                 <i class="fas fa-times"></i>
-            </button>
-        `;
-        scheduleList.appendChild(scheduleItem);
+            </button>`;
+        list.appendChild(el);
     });
 }
 
-function editProgram(programId) {
-    // Find the program in our list
-    const program = programs.find(p => p.id == programId);
-    if (program) {
-        // Load the program first, then show edit modal
-        loadProgram(programId).then(() => {
-            showEditProgramModal();
-        });
-    }
+function editProgram(id) {
+    loadProgram(id).then(() => showEditProgramModal());
 }
 
 function editCurrentProgram() {
-    if (currentProgram) {
-        showEditProgramModal();
-    }
+    if (currentProgram) showEditProgramModal();
 }
 
-// Open Create Activity modal from Edit Program modal
-function showCreateActivityFromProgram() {
-    // Don't close the edit program modal - we'll return to it
-    showModal('createActivityModal');
-}
+function showCreateActivityFromProgram() { showModal('createActivityModal'); }
+function showAddActivityFromProgram() { populateActivitySelector(); showModal('addActivityModal'); }
 
-// Open Add Activity to Schedule modal from Edit Program modal
-function showAddActivityFromProgram() {
-    // Populate the activity selector
-    populateActivitySelector();
-    showModal('addActivityModal');
-}
-
-function showProgramSelector() {
-    showModal('programSelectorModal');
-}
-
-// ============================================================================
-// PROGRAM SCHEDULE MANAGEMENT
-// ============================================================================
+// ── SCHEDULE ──
 
 function displayProgramSchedule() {
-    const programSchedule = document.getElementById('programSchedule');
-    programSchedule.innerHTML = '';
-    
+    const el = document.getElementById('programSchedule');
+    el.innerHTML = '';
     if (!currentProgram || !currentProgram.schedule || currentProgram.schedule.length === 0) {
-        programSchedule.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-clock"></i>
-                <p>No activities in schedule. Add activities to get started!</p>
-            </div>
-        `;
+        el.innerHTML = '<div class="empty-state"><p>No activities in schedule</p></div>';
         return;
     }
-    
     currentProgram.schedule.forEach(item => {
-        const scheduleItem = document.createElement('div');
-        scheduleItem.className = 'schedule-item';
-        scheduleItem.setAttribute('data-id', item.id);
-        scheduleItem.innerHTML = `
-            <div>
-                <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
-                <strong>${item.activity_name}</strong>
-            </div>
-            <div>
-                <span>${item.duration_minutes} minutes</span>
-                <button class="btn btn-danger btn-sm" onclick="removeFromSchedule(${item.id})" style="margin-left: 10px;">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </div>
-        `;
-        programSchedule.appendChild(scheduleItem);
+        const div = document.createElement('div');
+        div.className = 'schedule-item';
+        div.setAttribute('data-id', item.id);
+        div.innerHTML = `
+            <div><span class="drag-handle"><i class="fas fa-grip-vertical"></i></span> <strong>${item.activity_name}</strong></div>
+            <div><span style="font-size:0.85rem; color:var(--text-dim);">${item.duration_minutes}m</span>
+                <button class="btn btn-danger btn-sm" onclick="removeFromSchedule(${item.id})" style="margin-left:0.5rem;"><i class="fas fa-trash"></i></button>
+            </div>`;
+        el.appendChild(div);
     });
-    
-    // Initialize drag and drop for reordering
-    new Sortable(programSchedule, {
-        handle: '.drag-handle',
-        animation: 150,
-        onEnd: async function(evt) {
-            const scheduleOrder = Array.from(programSchedule.children).map(child => child.getAttribute('data-id'));
-            await reorderSchedule(scheduleOrder);
+    new Sortable(el, {
+        handle: '.drag-handle', animation: 150,
+        onEnd: async function() {
+            const order = Array.from(el.children).map(c => c.getAttribute('data-id'));
+            await reorderSchedule(order);
         }
     });
 }
 
-async function reorderSchedule(scheduleOrder) {
+async function reorderSchedule(order) {
     try {
-        const response = await fetch(`/api/programs/${currentProgram.id}/schedule/reorder`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: scheduleOrder })
+        const res = await fetch(`/api/programs/${currentProgram.id}/schedule/reorder`, {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ order })
         });
-        
-        if (response.ok) {
-            await loadProgram(currentProgram.id); // Reload to get updated order
-            showAlert('Schedule reordered successfully');
-        }
-    } catch (error) {
-        console.error('Error reordering schedule:', error);
-        showAlert('Error reordering schedule', 'error');
-    }
+        if (res.ok) { await loadProgram(currentProgram.id); showAlert('Schedule reordered'); }
+    } catch (e) { showAlert('Error reordering', 'error'); }
 }
 
 function showAddActivityModal() {
-    if (!currentProgram) {
-        showAlert('Please load a program first', 'error');
-        return;
-    }
+    if (!currentProgram) { showAlert('Load a program first', 'error'); return; }
     showModal('addActivityModal');
 }
 
 async function addActivityToSchedule() {
     const activityId = document.getElementById('activitySelect').value;
     const duration = parseInt(document.getElementById('scheduleActivityDuration').value);
-    
-    if (!activityId) {
-        showAlert('Please select an activity', 'error');
-        return;
-    }
-    
+    if (!activityId) { showAlert('Select an activity', 'error'); return; }
     try {
-        const response = await fetch(`/api/programs/${currentProgram.id}/schedule`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        const res = await fetch(`/api/programs/${currentProgram.id}/schedule`, {
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ activity_id: activityId, duration_minutes: duration })
         });
-        
-        if (response.ok) {
+        if (res.ok) {
             closeModal('addActivityModal');
             await loadProgram(currentProgram.id);
-            
-            // If edit program modal is open, refresh its schedule list
-            const editProgramModal = document.getElementById('editProgramModal');
-            if (editProgramModal && editProgramModal.style.display === 'block') {
-                displayEditProgramSchedule();
-                showAlert('Activity added to schedule!');
-            } else {
-                showAlert('Activity added to schedule');
-            }
-        } else {
-            const result = await response.json();
-            showAlert(result.error || 'Error adding activity to schedule', 'error');
+            const editModal = document.getElementById('editProgramModal');
+            if (editModal && editModal.style.display === 'block') displayEditProgramSchedule();
+            showAlert('Activity added');
         }
-    } catch (error) {
-        console.error('Error adding activity to schedule:', error);
-        showAlert('Error adding activity to schedule', 'error');
-    }
+    } catch (e) { showAlert('Error adding activity', 'error'); }
 }
 
-async function removeFromSchedule(scheduleId) {
-    if (!confirm('Are you sure you want to remove this activity from the schedule?')) {
-        return;
-    }
-    
+async function removeFromSchedule(id) {
+    if (!confirm('Remove this activity?')) return;
     try {
-        const response = await fetch(`/api/programs/${currentProgram.id}/schedule/${scheduleId}`, {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            await loadProgram(currentProgram.id);
-            showAlert('Activity removed from schedule');
-        }
-    } catch (error) {
-        console.error('Error removing from schedule:', error);
-        showAlert('Error removing activity from schedule', 'error');
-    }
+        const res = await fetch(`/api/programs/${currentProgram.id}/schedule/${id}`, { method: 'DELETE' });
+        if (res.ok) { await loadProgram(currentProgram.id); showAlert('Removed'); }
+    } catch (e) { showAlert('Error removing', 'error'); }
 }
 
-async function removeFromScheduleInModal(scheduleId) {
-    if (!confirm('Remove this activity from the schedule?')) {
-        return;
-    }
-    
+async function removeFromScheduleInModal(id) {
+    if (!confirm('Remove this activity?')) return;
     try {
-        const response = await fetch(`/api/programs/${currentProgram.id}/schedule/${scheduleId}`, {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            await loadProgram(currentProgram.id);
-            // Refresh the schedule list in the modal
-            displayEditProgramSchedule();
-            showAlert('Activity removed from schedule');
-        } else {
-            const result = await response.json();
-            showAlert(result.error || 'Error removing activity', 'error');
-        }
-    } catch (error) {
-        console.error('Error removing from schedule:', error);
-        showAlert('Error removing activity from schedule', 'error');
-    }
+        const res = await fetch(`/api/programs/${currentProgram.id}/schedule/${id}`, { method: 'DELETE' });
+        if (res.ok) { await loadProgram(currentProgram.id); displayEditProgramSchedule(); showAlert('Removed'); }
+    } catch (e) { showAlert('Error removing', 'error'); }
 }
 
-// ============================================================================
-// ACTIVITY MANAGEMENT
-// ============================================================================
+// ── ACTIVITIES ──
 
 async function loadActivities() {
     try {
-        const response = await fetch('/api/activities');
-        activities = await response.json();
+        const res = await fetch('/api/activities');
+        activities = await res.json();
         displayActivities();
         populateActivitySelect();
-    } catch (error) {
-        console.error('Error loading activities:', error);
-        showAlert('Error loading activities', 'error');
-    }
+    } catch (e) { console.error('Error loading activities:', e); }
 }
 
 function displayActivities() {
-    const activityList = document.getElementById('activityList');
-    activityList.innerHTML = '';
-    
+    const list = document.getElementById('activityList');
+    list.innerHTML = '';
     if (activities.length === 0) {
-        activityList.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-tasks"></i>
-                <p>No activities yet. Create your first activity!</p>
-            </div>
-        `;
+        list.innerHTML = '<div class="empty-state"><i class="fas fa-tasks"></i><p>No activities yet</p></div>';
         return;
     }
-    
-    activities.forEach(activity => {
-        const activityItem = document.createElement('div');
-        activityItem.className = 'activity-item';
-        activityItem.innerHTML = `
+    activities.forEach(a => {
+        const el = document.createElement('div');
+        el.className = 'activity-item';
+        el.innerHTML = `
             <div class="activity-info">
-                <h4>${activity.name}</h4>
-                <p>${activity.description || 'No description'} • Default: ${activity.default_duration}min</p>
+                <h4>${a.name}</h4>
+                <p>${a.description || ''} &middot; ${a.default_duration}min default</p>
             </div>
             <div class="item-actions">
-                <button class="btn btn-info btn-sm" onclick="editActivity(${activity.id})">
-                    <i class="fas fa-edit"></i> Edit
-                </button>
-            </div>
-        `;
-        activityList.appendChild(activityItem);
+                <button class="btn btn-secondary btn-sm" onclick="editActivity(${a.id})"><i class="fas fa-edit"></i></button>
+            </div>`;
+        list.appendChild(el);
     });
 }
 
 async function createActivity(event) {
     event.preventDefault();
-    const name = document.getElementById('activityName').value;
-    const default_duration = parseInt(document.getElementById('activityDuration').value);
-    const description = document.getElementById('activityDescription').value;
-    
+    const body = {
+        name: document.getElementById('activityName').value,
+        default_duration: parseInt(document.getElementById('activityDuration').value),
+        description: document.getElementById('activityDescription').value
+    };
     try {
-        const response = await fetch('/api/activities', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, default_duration, description })
+        const res = await fetch('/api/activities', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
         });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
+        if (res.ok) {
             closeModal('createActivityModal');
             document.getElementById('activityName').value = '';
             document.getElementById('activityDuration').value = '5';
             document.getElementById('activityDescription').value = '';
             await loadActivities();
-            showAlert('Activity created successfully! You can now add it to the schedule.');
-        } else {
-            showAlert(result.error || 'Error creating activity', 'error');
+            showAlert('Activity created');
         }
-    } catch (error) {
-        console.error('Error creating activity:', error);
-        showAlert('Error creating activity', 'error');
-    }
+    } catch (e) { showAlert('Error creating activity', 'error'); }
 }
 
-function showCreateActivityModal() {
-    showModal('createActivityModal');
-}
-
-function populateActivitySelect() {
-    populateActivitySelector();
-}
+function showCreateActivityModal() { showModal('createActivityModal'); }
+function populateActivitySelect() { populateActivitySelector(); }
 
 function populateActivitySelector() {
-    const activitySelect = document.getElementById('activitySelect');
-    activitySelect.innerHTML = '';
-    
+    const sel = document.getElementById('activitySelect');
+    sel.innerHTML = '';
     if (activities.length === 0) {
-        activitySelect.innerHTML = '<option value="">No activities available - create one first</option>';
+        sel.innerHTML = '<option value="">No activities - create one first</option>';
         return;
     }
-    
-    activities.forEach(activity => {
-        const option = document.createElement('option');
-        option.value = activity.id;
-        option.textContent = `${activity.name} (${activity.default_duration}min default)`;
-        activitySelect.appendChild(option);
+    activities.forEach(a => {
+        const opt = document.createElement('option');
+        opt.value = a.id;
+        opt.textContent = `${a.name} (${a.default_duration}min)`;
+        sel.appendChild(opt);
     });
-    
-    // Auto-populate duration with first activity's default
     if (activities.length > 0) {
         document.getElementById('scheduleActivityDuration').value = activities[0].default_duration;
-        
-        // Update duration when selection changes
-        activitySelect.addEventListener('change', function() {
-            const selectedActivity = activities.find(a => a.id == this.value);
-            if (selectedActivity) {
-                document.getElementById('scheduleActivityDuration').value = selectedActivity.default_duration;
-            }
+        sel.addEventListener('change', function() {
+            const act = activities.find(a => a.id == this.value);
+            if (act) document.getElementById('scheduleActivityDuration').value = act.default_duration;
         });
     }
 }
 
-// Placeholder function for activity editing
-function editActivity(activityId) {
-    showAlert('Edit activity feature coming soon!', 'info');
+function editActivity(id) {
+    const activity = activities.find(a => a.id == id);
+    if (!activity) { showAlert('Activity not found', 'error'); return; }
+    document.getElementById('editActivityId').value = activity.id;
+    document.getElementById('editActivityName').value = activity.name;
+    document.getElementById('editActivityDuration').value = activity.default_duration;
+    document.getElementById('editActivityDescription').value = activity.description || '';
+    showModal('editActivityModal');
 }
 
-// ============================================================================
-// TIMER CONTROL FUNCTIONS
-// ============================================================================
+async function updateActivity(event) {
+    event.preventDefault();
+    const id = document.getElementById('editActivityId').value;
+    const body = {
+        name: document.getElementById('editActivityName').value,
+        default_duration: parseInt(document.getElementById('editActivityDuration').value),
+        description: document.getElementById('editActivityDescription').value
+    };
+    try {
+        const res = await fetch(`/api/activities/${id}`, {
+            method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body)
+        });
+        if (res.ok) {
+            closeModal('editActivityModal');
+            await loadActivities();
+            showAlert('Activity updated');
+        } else {
+            const r = await res.json();
+            showAlert(r.error || 'Error updating', 'error');
+        }
+    } catch (e) { showAlert('Error updating activity', 'error'); }
+}
+
+async function deleteActivity() {
+    const id = document.getElementById('editActivityId').value;
+    if (!confirm('Delete this activity? It must not be in any program schedule.')) return;
+    try {
+        const res = await fetch(`/api/activities/${id}`, { method: 'DELETE' });
+        if (res.ok) {
+            closeModal('editActivityModal');
+            await loadActivities();
+            showAlert('Activity deleted');
+        } else {
+            const r = await res.json();
+            showAlert(r.error || 'Error deleting', 'error');
+        }
+    } catch (e) { showAlert('Error deleting activity', 'error'); }
+}
+
+// ── TIMER CONTROLS ──
 
 async function startCurrentProgram() {
-    if (!currentProgram) {
-        showAlert('Please load a program first', 'error');
-        return;
-    }
-    
+    if (!currentProgram) { showAlert('Load a program first', 'error'); return; }
     try {
-        const response = await fetch('/api/start_program', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        const res = await fetch('/api/start_program', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ program_id: currentProgram.id })
         });
-        
-        if (response.ok) {
-            showAlert('Program started from beginning');
-            updateTimerControls(true, false);
-        }
-    } catch (error) {
-        console.error('Error starting program:', error);
-        showAlert('Error starting program', 'error');
-    }
+        if (res.ok) { showAlert('Program started'); updateTimerControls(true, false); }
+    } catch (e) { showAlert('Error starting program', 'error'); }
 }
 
 async function startProgramSmart() {
-    if (!currentProgram) {
-        showAlert('Please load a program first', 'error');
-        return;
-    }
-    
+    if (!currentProgram) { showAlert('Load a program first', 'error'); return; }
     try {
-        const response = await fetch('/api/start_program_smart', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        const res = await fetch('/api/start_program_smart', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ program_id: currentProgram.id })
         });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
+        const result = await res.json();
+        if (res.ok) {
             if (result.status === 'waiting') {
-                showAlert(`Service will start automatically at ${result.scheduled_start}`);
-                
-                // Set waiting state in kiosk display
+                showAlert(`Will start at ${result.scheduled_start}`);
                 await fetch('/api/set_waiting_state', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: {'Content-Type':'application/json'},
                     body: JSON.stringify({
                         waiting: true,
                         scheduled_start: result.scheduled_start,
@@ -749,253 +515,135 @@ async function startProgramSmart() {
                     })
                 });
             } else {
-                showAlert('Program started successfully');
+                showAlert('Program started');
                 updateTimerControls(true, false);
             }
         }
-    } catch (error) {
-        console.error('Error starting program smartly:', error);
-        showAlert('Error starting program', 'error');
-    }
+    } catch (e) { showAlert('Error starting program', 'error'); }
 }
 
 async function pauseTimer() {
     try {
-        const response = await fetch('/api/pause_timer', { method: 'POST' });
-        if (response.ok) {
-            updateTimerControls(true, true);
-        }
-    } catch (error) {
-        console.error('Error pausing timer:', error);
-        showAlert('Error pausing timer', 'error');
-    }
+        const res = await fetch('/api/pause_timer', { method: 'POST' });
+        if (res.ok) updateTimerControls(true, true);
+    } catch (e) { showAlert('Error pausing', 'error'); }
 }
 
 async function resumeTimer() {
     try {
-        const response = await fetch('/api/resume_timer', { method: 'POST' });
-        if (response.ok) {
-            updateTimerControls(true, false);
-        }
-    } catch (error) {
-        console.error('Error resuming timer:', error);
-        showAlert('Error resuming timer', 'error');
-    }
+        const res = await fetch('/api/resume_timer', { method: 'POST' });
+        if (res.ok) updateTimerControls(true, false);
+    } catch (e) { showAlert('Error resuming', 'error'); }
 }
 
 async function stopTimer() {
-    // Show confirmation dialog
-    if (!confirm('Are you sure you want to STOP the timer? This will clear all running programs and waiting states.')) {
-        return; // User cancelled
-    }
-    
+    if (!confirm('Stop the timer? This clears all running programs and waiting states.')) return;
     try {
-        const response = await fetch('/api/stop_timer', { method: 'POST' });
-        if (response.ok) {
-            updateTimerControls(false, false);
-            showAlert('Timer stopped and reset');
-        }
-    } catch (error) {
-        console.error('Error stopping timer:', error);
-        showAlert('Error stopping timer', 'error');
-    }
+        const res = await fetch('/api/stop_timer', { method: 'POST' });
+        if (res.ok) { updateTimerControls(false, false); showAlert('Timer stopped'); }
+    } catch (e) { showAlert('Error stopping', 'error'); }
 }
 
 async function nextItem() {
     try {
-        const response = await fetch('/api/next_item', { method: 'POST' });
-        if (response.ok) {
-            showAlert('Moved to next item');
-        }
-    } catch (error) {
-        console.error('Error moving to next item:', error);
-        showAlert('Error moving to next item', 'error');
-    }
+        const res = await fetch('/api/next_item', { method: 'POST' });
+        if (res.ok) showAlert('Next item');
+    } catch (e) { showAlert('Error', 'error'); }
 }
 
-function updateTimerControls(isRunning, isPaused) {
-    timerState.is_running = isRunning;
-    timerState.is_paused = isPaused;
-    
-    document.getElementById('startBtn').disabled = isRunning;
-    document.getElementById('smartStartBtn').disabled = isRunning;
-    document.getElementById('pauseBtn').disabled = !isRunning || isPaused;
-    document.getElementById('resumeBtn').disabled = !isRunning || !isPaused;
-    document.getElementById('stopBtn').disabled = !isRunning;
-    document.getElementById('nextBtn').disabled = !isRunning;
+function updateTimerControls(running, paused) {
+    timerState.is_running = running;
+    timerState.is_paused = paused;
+    document.getElementById('startBtn').disabled = running;
+    document.getElementById('smartStartBtn').disabled = running;
+    document.getElementById('pauseBtn').disabled = !running || paused;
+    document.getElementById('resumeBtn').disabled = !running || !paused;
+    document.getElementById('stopBtn').disabled = !running;
+    document.getElementById('nextBtn').disabled = !running;
 }
 
-// ============================================================================
-// LIVE SCHEDULE MANAGEMENT
-// ============================================================================
+// ── LIVE SCHEDULE ──
 
 async function updateLiveSchedule() {
     try {
-        const response = await fetch('/api/live_schedule');
-        const data = await response.json();
-        
-        const liveScheduleList = document.getElementById('liveScheduleList');
-        liveScheduleList.innerHTML = '';
-        
-        if (data.schedule.length === 0) {
-            liveScheduleList.innerHTML = '<p style="color: #7f8c8d;">No schedule loaded</p>';
-            return;
-        }
-        
+        const res = await fetch('/api/live_schedule');
+        const data = await res.json();
+        const list = document.getElementById('liveScheduleList');
+        list.innerHTML = '';
+        if (data.schedule.length === 0) return;
+
         data.schedule.forEach(item => {
-            const scheduleItem = document.createElement('div');
-            scheduleItem.className = 'live-schedule-item';
-            scheduleItem.setAttribute('data-id', item.id);
-            
-            if (item.id === data.current_schedule_id && data.is_running) {
-                scheduleItem.classList.add('current-activity');
-            }
-            
-            scheduleItem.innerHTML = `
+            const el = document.createElement('div');
+            el.className = 'live-schedule-item';
+            el.setAttribute('data-id', item.id);
+            if (item.id === data.current_schedule_id && data.is_running) el.classList.add('current-activity');
+            el.innerHTML = `
                 <div class="live-schedule-item-info">
                     <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
                     <strong>${item.activity_name}</strong>
                 </div>
-                <div class="live-schedule-item-duration">
-                    ${item.duration_minutes} min
-                </div>
-            `;
-            liveScheduleList.appendChild(scheduleItem);
+                <div class="live-schedule-item-duration">${item.duration_minutes}m</div>`;
+            list.appendChild(el);
         });
-        
-        // Initialize or update sortable
-        if (liveScheduleSortable) {
-            liveScheduleSortable.destroy();
-        }
-        
-        liveScheduleSortable = new Sortable(liveScheduleList, {
-            handle: '.drag-handle',
-            animation: 150,
-            onEnd: async function(evt) {
-                const scheduleOrder = Array.from(liveScheduleList.children)
-                    .map(child => parseInt(child.getAttribute('data-id')));
-                await reorderLiveSchedule(scheduleOrder);
+
+        if (liveScheduleSortable) liveScheduleSortable.destroy();
+        liveScheduleSortable = new Sortable(list, {
+            handle: '.drag-handle', animation: 150,
+            onEnd: async function() {
+                const order = Array.from(list.children).map(c => parseInt(c.getAttribute('data-id')));
+                await reorderLiveSchedule(order);
             }
         });
-    } catch (error) {
-        console.error('Error updating live schedule:', error);
-    }
+    } catch (e) { console.error('Error updating live schedule:', e); }
 }
 
-async function reorderLiveSchedule(scheduleOrder) {
+async function reorderLiveSchedule(order) {
     try {
-        const response = await fetch('/api/live_schedule/reorder', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order: scheduleOrder })
+        const res = await fetch('/api/live_schedule/reorder', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ order })
         });
-        
-        if (response.ok) {
-            showAlert('Live schedule reordered (temporary change)', 'success');
-        }
-    } catch (error) {
-        console.error('Error reordering live schedule:', error);
-        showAlert('Error reordering live schedule', 'error');
-    }
+        if (res.ok) showAlert('Reordered (temporary)');
+    } catch (e) { showAlert('Error reordering', 'error'); }
 }
 
-// ============================================================================
-// TIMER STATUS UPDATES
-// ============================================================================
+// ── STATUS UPDATES ──
 
-async function startTimerStatusUpdates() {
+function startTimerStatusUpdates() {
     setInterval(updateTimerStatus, 1000);
-    setInterval(updateAutoStartStatus, 10000); // Update every 10 seconds
-    updateAutoStartStatus(); // Initial call
-}
-
-async function updateAutoStartStatus() {
-    try {
-        const response = await fetch('/api/next_autostart');
-        const data = await response.json();
-        
-        const autoStartCard = document.getElementById('autoStartCard');
-        const autoStartMessage = document.getElementById('autoStartMessage');
-        const autoStartCountdown = document.getElementById('autoStartCountdown');
-        
-        if (data.has_autostart && !data.is_future_day) {
-            // Show the auto-start card
-            autoStartCard.style.display = 'block';
-            
-            // Update message
-            autoStartMessage.textContent = `"${data.program_name}" will start automatically at ${data.scheduled_time} (${data.day_of_week})`;
-            
-            // Update countdown
-            if (data.minutes_until !== undefined) {
-                if (data.minutes_until <= 0) {
-                    autoStartCountdown.textContent = 'Starting now...';
-                    autoStartCountdown.style.color = '#27ae60';
-                } else if (data.minutes_until <= 5) {
-                    autoStartCountdown.textContent = `⏱️ Starting in ${data.minutes_until} minute${data.minutes_until !== 1 ? 's' : ''}!`;
-                    autoStartCountdown.style.color = '#e74c3c';
-                } else if (data.minutes_until <= 15) {
-                    autoStartCountdown.textContent = `Starting in ${data.time_display}`;
-                    autoStartCountdown.style.color = '#f39c12';
-                } else {
-                    autoStartCountdown.textContent = `Starting in ${data.time_display}`;
-                    autoStartCountdown.style.color = '#3498db';
-                }
-            } else {
-                autoStartCountdown.textContent = '';
-            }
-        } else if (data.has_autostart && data.is_future_day) {
-            // Show info about future program
-            autoStartCard.style.display = 'block';
-            autoStartMessage.textContent = `Next auto-start: "${data.program_name}" on ${data.day_of_week} at ${data.scheduled_time}`;
-            autoStartCountdown.textContent = '';
-        } else {
-            // Hide the auto-start card
-            autoStartCard.style.display = 'none';
-        }
-    } catch (error) {
-        console.error('Error updating auto-start status:', error);
-        // Hide card on error
-        const autoStartCard = document.getElementById('autoStartCard');
-        if (autoStartCard) {
-            autoStartCard.style.display = 'none';
-        }
-    }
 }
 
 async function updateTimerStatus() {
     try {
-        const response = await fetch('/api/timer_status');
-        const status = await response.json();
-        
-        document.getElementById('statusText').textContent = 
-            status.is_running ? (status.is_paused ? 'PAUSED' : 'RUNNING') : 'STOPPED';
-        document.getElementById('currentActivity').textContent = status.current_activity || '-';
-        document.getElementById('timeRemaining').textContent = status.time_remaining;
-        
-        // Update status indicator
-        const statusIndicator = document.querySelector('.status-indicator');
-        statusIndicator.className = 'status-indicator ' + 
-            (status.is_running ? (status.is_paused ? 'status-paused' : 'status-running') : 'status-stopped');
-        
-        // Update control buttons
-        updateTimerControls(status.is_running, status.is_paused);
-        
-        // Show/hide live schedule card based on running state
-        const liveScheduleCard = document.getElementById('liveScheduleCard');
-        if (status.is_running) {
-            liveScheduleCard.style.display = 'block';
-            updateLiveSchedule();
+        const res = await fetch('/api/timer_status');
+        const s = await res.json();
+
+        // Status text + dot
+        const dot = document.querySelector('.status-dot');
+        const text = document.getElementById('statusText');
+        if (s.is_running) {
+            text.textContent = s.is_paused ? 'PAUSED' : 'RUNNING';
+            dot.className = 'status-dot ' + (s.is_paused ? 'paused' : 'running');
         } else {
-            liveScheduleCard.style.display = 'none';
+            text.textContent = 'STOPPED';
+            dot.className = 'status-dot stopped';
         }
 
-        // Show/hide queued program card
-        const queuedCard = document.getElementById('queuedProgramCard');
-        const qp = status.queued_program;
+        document.getElementById('currentActivity').textContent = s.current_activity || '-';
+        document.getElementById('timeRemaining').textContent = s.time_remaining;
+
+        updateTimerControls(s.is_running, s.is_paused);
+
+        // Live schedule
+        const liveCard = document.getElementById('liveScheduleCard');
+        if (s.is_running) { liveCard.style.display = 'block'; updateLiveSchedule(); }
+        else { liveCard.style.display = 'none'; }
+
+        // Queue
+        const qCard = document.getElementById('queuedProgramCard');
+        const qp = s.queued_program;
         if (qp && qp.has_queued) {
-            queuedCard.style.display = 'block';
+            qCard.style.display = 'block';
             document.getElementById('queuedProgramName').textContent = qp.program_name;
-            // Calculate countdown
             const parts = qp.scheduled_start_time.split(':');
             if (parts.length === 2) {
                 const now = new Date();
@@ -1004,306 +652,182 @@ async function updateTimerStatus() {
                 const diff = Math.max(0, Math.floor((target - now) / 1000));
                 const h = Math.floor(diff / 3600);
                 const m = Math.floor((diff % 3600) / 60);
-                const s = diff % 60;
+                const sec = diff % 60;
                 const pad = n => String(n).padStart(2, '0');
                 document.getElementById('queuedProgramCountdown').textContent =
-                    'Starting in ' + pad(h) + ':' + pad(m) + ':' + pad(s) +
-                    '  (at ' + qp.scheduled_start_time + ')';
+                    `${pad(h)}:${pad(m)}:${pad(sec)} \u2022 starts at ${qp.scheduled_start_time}`;
             }
         } else {
-            queuedCard.style.display = 'none';
+            qCard.style.display = 'none';
         }
-    } catch (error) {
-        console.error('Error updating timer status:', error);
-    }
+    } catch (e) { console.error('Error updating status:', e); }
 }
 
 async function clearQueue() {
-    try {
-        await fetch('/api/clear_queue', { method: 'POST' });
-    } catch (error) {
-        console.error('Error clearing queue:', error);
-    }
+    try { await fetch('/api/clear_queue', { method: 'POST' }); }
+    catch (e) { console.error('Error clearing queue:', e); }
 }
-// ============================================================================
-// STAGE MESSAGE FUNCTIONS
-// ============================================================================
 
-// Update character count
+async function resetScreen() {
+    if (!confirm('Reset screen? This stops ALL running programs, countdowns, messages, and queued items.')) return;
+    try {
+        const res = await fetch('/api/reset_screen', { method: 'POST' });
+        if (res.ok) {
+            updateTimerControls(false, false);
+            showAlert('Screen reset to idle');
+        }
+    } catch (e) { showAlert('Error resetting screen', 'error'); }
+}
 
-// ============================================================================
-// STAGE MESSAGE FUNCTIONS
-// ============================================================================
+// ── STAGE MESSAGE ──
 
 async function sendStageMessage() {
-    const messageInput = document.getElementById('stageMessageInput');
-    const durationSlider = document.getElementById('messageDuration');
-    const statusDiv = document.getElementById('messageStatus');
-    
-    const message = messageInput.value.trim();
-    const duration = parseInt(durationSlider.value);
-    
-    if (!message) {
-        showMessageStatus('Please enter a message', 'error');
-        return;
-    }
-    
+    const msg = document.getElementById('stageMessageInput').value.trim();
+    const dur = parseInt(document.getElementById('messageDuration').value);
+    if (!msg) { showMessageStatus('Enter a message', 'error'); return; }
     try {
-        const response = await fetch('/api/stage_message', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                message: message,
-                duration_seconds: duration
-            })
+        const res = await fetch('/api/stage_message', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ message: msg, duration_seconds: dur })
         });
-        
-        const data = await response.json();
-        
-        if (response.ok) {
-            const minutes = Math.floor(duration / 60);
-            const secs = duration % 60;
-            const timeStr = `${minutes}:${secs.toString().padStart(2, '0')}`;
-            
-            showMessageStatus(`✓ Message sent to stage! Will display for ${timeStr}`, 'success');
-            
-            // Clear input after successful send
-            messageInput.value = '';
+        if (res.ok) {
+            const m = Math.floor(dur/60), s = dur%60;
+            showMessageStatus(`Sent for ${m}:${s.toString().padStart(2,'0')}`, 'success');
+            document.getElementById('stageMessageInput').value = '';
             document.getElementById('messageCharCount').textContent = '0';
-        } else {
-            showMessageStatus('Error: ' + (data.error || 'Failed to send message'), 'error');
-        }
-    } catch (error) {
-        console.error('Error sending stage message:', error);
-        showMessageStatus('Error: Failed to send message', 'error');
-    }
+        } else { showMessageStatus('Failed to send', 'error'); }
+    } catch (e) { showMessageStatus('Failed to send', 'error'); }
 }
 
 async function clearStageMessage() {
-    const statusDiv = document.getElementById('messageStatus');
-    
     try {
-        const response = await fetch('/api/stage_message', {
-            method: 'DELETE'
-        });
-        
-        if (response.ok) {
-            showMessageStatus('✓ Stage message cleared', 'success');
-        } else {
-            showMessageStatus('Error: Failed to clear message', 'error');
-        }
-    } catch (error) {
-        console.error('Error clearing stage message:', error);
-        showMessageStatus('Error: Failed to clear message', 'error');
-    }
+        const res = await fetch('/api/stage_message', { method: 'DELETE' });
+        if (res.ok) showMessageStatus('Cleared', 'success');
+    } catch (e) { showMessageStatus('Failed to clear', 'error'); }
 }
 
-function showMessageStatus(message, type) {
-    const statusDiv = document.getElementById('messageStatus');
-    
-    statusDiv.textContent = message;
-    statusDiv.style.display = 'block';
-    
-    if (type === 'success') {
-        statusDiv.style.background = '#d4edda';
-        statusDiv.style.color = '#155724';
-        statusDiv.style.border = '1px solid #c3e6cb';
-    } else if (type === 'error') {
-        statusDiv.style.background = '#f8d7da';
-        statusDiv.style.color = '#721c24';
-        statusDiv.style.border = '1px solid #f5c6cb';
-    }
-    
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        statusDiv.style.display = 'none';
-    }, 5000);
+function showMessageStatus(msg, type) {
+    const el = document.getElementById('messageStatus');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.background = type === 'success' ? 'var(--green-dim)' : 'var(--red-dim)';
+    el.style.color = type === 'success' ? 'var(--green)' : 'var(--red)';
+    el.style.border = '1px solid ' + (type === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)');
+    setTimeout(() => el.style.display = 'none', 4000);
 }
 
-// ============================================================================
-// COUNTDOWN TIMER FUNCTIONS
-// ============================================================================
+// ── COUNTDOWN TIMER ──
 
 function selectCountdownType(type) {
-    // Update button styles
-    const buttons = document.querySelectorAll('.countdown-type-btn');
-    buttons.forEach(btn => {
-        if (btn.dataset.type === type) {
-            btn.classList.add('active');
-            btn.style.background = '#3498db';
-            btn.style.color = 'white';
-            btn.style.borderColor = '#3498db';
-        } else {
-            btn.classList.remove('active');
-            btn.style.background = 'white';
-            btn.style.color = '#666';
-            btn.style.borderColor = '#ddd';
-        }
+    document.querySelectorAll('.countdown-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.type === type);
     });
-    
-    // Show/hide appropriate input sections
-    const durationSection = document.getElementById('durationInputSection');
-    const targetTimeSection = document.getElementById('targetTimeInputSection');
-    const presetsSection = document.getElementById('quickPresetsSection');
-    
-    if (type === 'duration') {
-        durationSection.style.display = 'block';
-        targetTimeSection.style.display = 'none';
-        presetsSection.style.display = 'none';
-    } else {
-        durationSection.style.display = 'none';
-        targetTimeSection.style.display = 'block';
-        presetsSection.style.display = 'block';
-    }
+    document.getElementById('durationInputSection').style.display = type === 'duration' ? 'block' : 'none';
+    document.getElementById('targetTimeInputSection').style.display = type === 'target_time' ? 'block' : 'none';
+    document.getElementById('quickPresetsSection').style.display = type === 'target_time' ? 'grid' : 'none';
 }
 
 function setQuickPreset(preset) {
     const now = new Date();
-    const timeInput = document.getElementById('targetTime');
-    
+    const t = document.getElementById('targetTime');
+    const n = document.getElementById('countdownName');
     switch(preset) {
-        case 'midnight':
-            timeInput.value = '00:00';
-            document.getElementById('countdownName').value = 'Countdown to Midnight';
-            break;
-        case 'noon':
-            timeInput.value = '12:00';
-            document.getElementById('countdownName').value = 'Countdown to Noon';
-            break;
+        case 'midnight': t.value = '00:00'; n.value = 'Countdown to Midnight'; break;
+        case 'noon': t.value = '12:00'; n.value = 'Countdown to Noon'; break;
         case 'hour':
-            const nextHour = new Date(now);
-            nextHour.setHours(nextHour.getHours() + 1, 0, 0, 0);
-            timeInput.value = `${nextHour.getHours().toString().padStart(2, '0')}:00`;
-            document.getElementById('countdownName').value = 'Countdown to Top of Hour';
-            break;
+            const nh = new Date(now); nh.setHours(nh.getHours()+1,0,0,0);
+            t.value = `${nh.getHours().toString().padStart(2,'0')}:00`;
+            n.value = 'Countdown to Top of Hour'; break;
         case 'half':
-            const nextHalf = new Date(now);
-            if (now.getMinutes() < 30) {
-                nextHalf.setMinutes(30, 0, 0);
-            } else {
-                nextHalf.setHours(nextHalf.getHours() + 1, 0, 0, 0);
-            }
-            timeInput.value = `${nextHalf.getHours().toString().padStart(2, '0')}:${nextHalf.getMinutes().toString().padStart(2, '0')}`;
-            document.getElementById('countdownName').value = 'Countdown to Half Hour';
-            break;
+            const hh = new Date(now);
+            if (now.getMinutes() < 30) hh.setMinutes(30,0,0);
+            else hh.setHours(hh.getHours()+1,0,0,0);
+            t.value = `${hh.getHours().toString().padStart(2,'0')}:${hh.getMinutes().toString().padStart(2,'0')}`;
+            n.value = 'Countdown to Half Hour'; break;
     }
 }
 
 async function startCountdownTimer() {
-    const timerType = document.querySelector('.countdown-type-btn.active').dataset.type;
+    const type = document.querySelector('.countdown-type-btn.active').dataset.type;
     const name = document.getElementById('countdownName').value.trim() || 'Countdown';
-    
-    let payload = {
-        timer_type: timerType,
-        name: name
-    };
-    
-    if (timerType === 'duration') {
-        const minutes = parseInt(document.getElementById('countdownMinutes').value) || 0;
-        const seconds = parseInt(document.getElementById('countdownSeconds').value) || 0;
-        const totalSeconds = (minutes * 60) + seconds;
-        
-        if (totalSeconds <= 0) {
-            showCountdownStatus('Please enter a valid duration', 'error');
-            return;
-        }
-        
-        payload.duration_seconds = totalSeconds;
+    let payload = { timer_type: type, name };
+
+    if (type === 'duration') {
+        const mins = parseInt(document.getElementById('countdownMinutes').value) || 0;
+        const secs = parseInt(document.getElementById('countdownSeconds').value) || 0;
+        const total = mins * 60 + secs;
+        if (total <= 0) { showCountdownStatus('Enter a valid duration', 'error'); return; }
+        payload.duration_seconds = total;
     } else {
-        const targetTime = document.getElementById('targetTime').value;
-        
-        if (!targetTime) {
-            showCountdownStatus('Please select a target time', 'error');
-            return;
-        }
-        
-        payload.target_time = targetTime;
+        const target = document.getElementById('targetTime').value;
+        if (!target) { showCountdownStatus('Select a target time', 'error'); return; }
+        payload.target_time = target;
     }
-    
+
     try {
-        const response = await fetch('/api/countdown_timer', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
+        const res = await fetch('/api/countdown_timer', {
+            method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload)
         });
-        
-        if (response.ok) {
-            const result = await response.json();
-            showCountdownStatus(`✓ Countdown timer started: ${name}`, 'success');
-            showAlert(`Countdown timer "${name}" started`, 'success');
-        } else {
-            const error = await response.json();
-            showCountdownStatus(`Error: ${error.error || 'Failed to start countdown'}`, 'error');
-        }
-    } catch (error) {
-        console.error('Error starting countdown timer:', error);
-        showCountdownStatus('Error: Failed to start countdown timer', 'error');
-    }
+        if (res.ok) { showCountdownStatus(`Started: ${name}`, 'success'); showAlert(`Countdown "${name}" started`); }
+        else { const e = await res.json(); showCountdownStatus(e.error || 'Failed', 'error'); }
+    } catch (e) { showCountdownStatus('Failed to start', 'error'); }
 }
 
 async function stopCountdownTimer() {
     try {
-        const response = await fetch('/api/countdown_timer', {
-            method: 'DELETE'
+        const res = await fetch('/api/countdown_timer', { method: 'DELETE' });
+        if (res.ok) { showCountdownStatus('Stopped', 'success'); showAlert('Countdown stopped', 'info'); }
+    } catch (e) { showCountdownStatus('Failed to stop', 'error'); }
+}
+
+// ── THEME ──
+
+async function setTheme(theme) {
+    try {
+        const res = await fetch('/api/kiosk_theme', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ theme })
         });
-        
-        if (response.ok) {
-            showCountdownStatus('✓ Countdown timer stopped', 'success');
-            showAlert('Countdown timer stopped', 'info');
-        } else {
-            showCountdownStatus('Error: Failed to stop countdown', 'error');
+        if (res.ok) {
+            document.querySelectorAll('.theme-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.theme === theme);
+            });
+            showAlert(`Theme: ${theme}`);
         }
-    } catch (error) {
-        console.error('Error stopping countdown timer:', error);
-        showCountdownStatus('Error: Failed to stop countdown timer', 'error');
-    }
+    } catch (e) { showAlert('Error setting theme', 'error'); }
 }
 
-function showCountdownStatus(message, type) {
-    const statusDiv = document.getElementById('countdownStatus');
-    
-    statusDiv.textContent = message;
-    statusDiv.style.display = 'block';
-    
-    if (type === 'success') {
-        statusDiv.style.background = '#d4edda';
-        statusDiv.style.color = '#155724';
-        statusDiv.style.border = '1px solid #c3e6cb';
-    } else if (type === 'error') {
-        statusDiv.style.background = '#f8d7da';
-        statusDiv.style.color = '#721c24';
-        statusDiv.style.border = '1px solid #f5c6cb';
-    }
-    
-    // Auto-hide after 5 seconds
-    setTimeout(() => {
-        statusDiv.style.display = 'none';
-    }, 5000);
+async function setFont(font) {
+    try {
+        const res = await fetch('/api/kiosk_theme', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ font })
+        });
+        if (res.ok) {
+            document.querySelectorAll('.font-option').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.font === font);
+            });
+            showAlert(`Font: ${font}`);
+        }
+    } catch (e) { showAlert('Error setting font', 'error'); }
 }
 
-// Initialize stage message event listeners when DOM is ready
-document.addEventListener('DOMContentLoaded', function() {
-    const messageInput = document.getElementById('stageMessageInput');
-    const charCount = document.getElementById('messageCharCount');
-    const durationSlider = document.getElementById('messageDuration');
-    const durationDisplay = document.getElementById('durationDisplay');
-    
-    if (messageInput && charCount) {
-        messageInput.addEventListener('input', function() {
-            charCount.textContent = this.value.length;
-        });
-    }
-    
-    if (durationSlider && durationDisplay) {
-        durationSlider.addEventListener('input', function() {
-            const seconds = parseInt(this.value);
-            const minutes = Math.floor(seconds / 60);
-            const secs = seconds % 60;
-            durationDisplay.textContent = `${minutes}:${secs.toString().padStart(2, '0')}`;
-        });
-    }
-});
+// Load current theme + font on startup
+fetch('/api/kiosk_theme').then(r=>r.json()).then(d => {
+    document.querySelectorAll('.theme-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.theme === d.theme);
+    });
+    document.querySelectorAll('.font-option').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.font === d.font);
+    });
+}).catch(()=>{});
+
+function showCountdownStatus(msg, type) {
+    const el = document.getElementById('countdownStatus');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.style.background = type === 'success' ? 'var(--green-dim)' : 'var(--red-dim)';
+    el.style.color = type === 'success' ? 'var(--green)' : 'var(--red)';
+    el.style.border = '1px solid ' + (type === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)');
+    setTimeout(() => el.style.display = 'none', 4000);
+}

@@ -165,6 +165,19 @@ def init_db():
         )
     ''')
     
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS kiosk_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            theme TEXT NOT NULL DEFAULT 'flip',
+            font TEXT NOT NULL DEFAULT 'inter'
+        )
+    ''')
+
+    # Initialize kiosk settings if not present
+    c.execute('SELECT COUNT(*) FROM kiosk_settings')
+    if c.fetchone()[0] == 0:
+        c.execute("INSERT INTO kiosk_settings (id, theme, font) VALUES (1, 'flip', 'inter')")
+
     # Run migrations for existing tables
     run_migrations(conn)
     
