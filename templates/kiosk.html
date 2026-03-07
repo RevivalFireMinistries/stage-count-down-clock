@@ -1,4 +1,3 @@
-<!-- templates/kiosk.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -6,15 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700;900&display=swap" rel="stylesheet">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
         body {
-            background: #000000;
-            color: #ffffff;
+            background: #000;
+            color: #fff;
             font-family: 'Poppins', sans-serif;
             height: 100vh;
             width: 100vw;
@@ -23,67 +18,8 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
-            position: relative;
         }
-        
-        /* Current Time and Status Bar */
-        .top-bar {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 2.5vh 4vw;
-            background: rgba(255, 255, 255, 0.03);
-            z-index: 100;
-        }
-        
-        .current-time {
-            font-size: 6vh;
-            font-weight: 700;
-            letter-spacing: 3px;
-            color: rgba(255, 255, 255, 0.9);
-        }
-        
-        .status-badge {
-            font-size: 2.5vh;
-            font-weight: 700;
-            letter-spacing: 3px;
-            padding: 1.2vh 3vw;
-            border-radius: 50px;
-            text-transform: uppercase;
-        }
-        
-        .status-stopped {
-            background: rgba(231, 76, 60, 0.2);
-            color: #e74c3c;
-            border: 2px solid #e74c3c;
-        }
-        
-        .status-running {
-            background: rgba(46, 204, 113, 0.2);
-            color: #2ecc71;
-            border: 2px solid #2ecc71;
-            animation: pulse 2s infinite;
-        }
-        
-        .status-paused {
-            background: rgba(243, 156, 18, 0.2);
-            color: #f39c12;
-            border: 2px solid #f39c12;
-            animation: blink 1.5s infinite;
-        }
-        
-        .status-waiting {
-            background: rgba(241, 196, 15, 0.2);
-            color: #f1c40f;
-            border: 2px solid #f1c40f;
-            animation: pulse 2s infinite;
-        }
-        
-        /* Main Container */
+
         .container {
             width: 100%;
             height: 100%;
@@ -92,684 +28,311 @@
             justify-content: center;
             align-items: center;
             text-align: center;
-            padding: 12vh 5vw 12vh 5vw;
+            padding: 5vh 5vw;
         }
-        
-        /* Clock View - Default Display */
+
+        /* Clock (idle state) */
         .clock-view {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            width: 100%;
         }
-        
-        .clock-view.hidden {
-            display: none;
-        }
-        
-        .current-time-main {
-            font-size: 25vh;
+        .clock-view.hidden { display: none; }
+        .clock-time {
+            font-size: 28vh;
             font-weight: 900;
-            color: #ffffff;
-            font-family: 'Poppins', sans-serif;
-            letter-spacing: 0.05em;
-            text-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
             line-height: 1;
-            margin-bottom: 2vh;
+            letter-spacing: 0.03em;
         }
-        
-        .current-date {
-            font-size: 4vh;
-            font-weight: 400;
-            color: rgba(255, 255, 255, 0.7);
-            letter-spacing: 0.1em;
+        .clock-date {
+            font-size: 3.5vh;
+            font-weight: 300;
+            color: rgba(255,255,255,0.4);
+            margin-top: 2vh;
+            letter-spacing: 0.15em;
             text-transform: uppercase;
         }
-        
-        /* When running - hide clock from center completely */
-        .clock-view.secondary {
-            display: none;
-        }
-        
-        /* Activity Name (Caption) */
-.activity-name {
-    font-size: 8vh; /* Increased from 7vh */
-    font-weight: 900;
-    text-transform: uppercase;
-    letter-spacing: 10px; /* Increased from 8px */
-    margin-bottom: 3vh; /* Increased from 2vh */
-    color: #ffffff;
-    font-family: 'Poppins', sans-serif;
-    text-shadow: 0 5px 20px rgba(255, 255, 255, 0.2); /* Added subtle glow */
-}
-        
-        /* Time Remaining Label */
-.time-label {
-    font-size: 3.5vh; /* Increased from 2.8vh */
-    font-weight: 400;
-    letter-spacing: 8px; /* Increased from 6px */
-    margin-bottom: 8vh; /* Increased from 6vh */
-    color: rgba(255, 255, 255, 0.6); /* Brighter from 0.4 */
-    text-transform: uppercase;
-    text-shadow: 0 2px 10px rgba(255, 255, 255, 0.1);
-}
-        
-        /* Countdown Container */
-.countdown-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 4vw; /* Increased from 3vw */
-    margin-bottom: 8vh; /* Increased from 5vh */
-}
 
-.countdown-container {
-    position: relative;
-}
+        /* Activity name */
+        .activity-name {
+            font-size: 6vh;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.3em;
+            color: rgba(255,255,255,0.5);
+            margin-bottom: 4vh;
+        }
 
-.countdown-container::before {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 90vw;
-    height: 45vh;
-    background: radial-gradient(ellipse at center, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0) 70%);
-    z-index: -1;
-    pointer-events: none;
-}
-        
-        .countdown-container.hide {
+        /* Countdown numbers */
+        .countdown {
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
+            gap: 1vw;
+        }
+        .countdown .num {
+            font-size: 28vh;
+            font-weight: 900;
+            line-height: 1;
+            letter-spacing: 0.02em;
+            transition: color 0.5s ease;
+        }
+        .countdown .sep {
+            font-size: 22vh;
+            font-weight: 300;
+            color: rgba(255,255,255,0.3);
+            line-height: 1;
+            transition: color 0.5s ease;
+        }
+
+        /* Warning colors */
+        .warn-orange .num, .warn-orange .sep { color: #f39c12; }
+        .warn-red .num, .warn-red .sep { color: #e74c3c; }
+        .warn-red .num { animation: pulse-red 1s infinite; }
+
+        @keyframes pulse-red {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* TIME UP */
+        .time-up {
             display: none;
+            font-size: 28vh;
+            font-weight: 900;
+            color: #e74c3c;
+            animation: pulse-red 0.8s infinite;
         }
-        
-        /* TIME UP Message */
-.time-up-message {
-    display: none;
-    font-size: 30vh; /* Increased from 25vh */
-    font-weight: 900;
-    color: #e74c3c;
-    letter-spacing: 0.2em; /* Increased from 0.1em */
-    text-transform: uppercase;
-    animation: pulse-urgent 0.8s infinite; /* Faster pulse */
-    text-shadow: 0 0 50px rgba(231, 76, 60, 1); /* Bigger glow */
-    margin-bottom: 8vh; /* Increased from 5vh */
-    padding: 0 5vw;
-}
-        .time-up-message.show {
-            display: block;
-        }
-        
-        @keyframes pulse-urgent {
-            0%, 100% {
-                transform: scale(1);
-                opacity: 1;
-            }
-            50% {
-                transform: scale(1.05);
-                opacity: 0.9;
-            }
-        }
-        
-        /* Stage Message Overlay */
-        .stage-message-overlay {
+        .time-up.show { display: block; }
+
+        /* Normal view wrapper */
+        .normal-view {
             display: none;
-            position: fixed;
-            top: 0;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Progress bar */
+        .progress-bar-container {
+            position: absolute;
+            bottom: 0;
             left: 0;
             right: 0;
-            bottom: 0;
+            height: 0.5vh;
+            background: rgba(255,255,255,0.08);
+        }
+        .progress-fill {
+            height: 100%;
+            background: #fff;
+            transition: width 1s linear, background-color 0.5s ease;
+            width: 100%;
+        }
+        .progress-fill.warn-orange { background: #f39c12; }
+        .progress-fill.warn-red { background: #e74c3c; }
+
+        /* Waiting state */
+        .waiting-view {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .waiting-view.active { display: flex; }
+        .waiting-label {
+            font-size: 3vh;
+            font-weight: 300;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 0.3em;
+            text-transform: uppercase;
+            margin-bottom: 3vh;
+        }
+        .waiting-countdown {
+            font-size: 28vh;
+            font-weight: 900;
+            color: #f1c40f;
+            line-height: 1;
+        }
+        .waiting-meta {
+            font-size: 3vh;
+            font-weight: 300;
+            color: rgba(255,255,255,0.25);
+            margin-top: 3vh;
+            letter-spacing: 0.1em;
+        }
+
+        /* Queued banner */
+        .queued-banner {
+            display: none;
+            position: absolute;
+            bottom: 3vh;
+            left: 50%;
+            transform: translateX(-50%);
+            align-items: center;
+            gap: 1.5vw;
+            font-size: 2vh;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 0.1em;
+            white-space: nowrap;
+        }
+        .queued-banner.active { display: flex; }
+        .queued-banner .label {
+            font-weight: 700;
+            color: rgba(241,196,15,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+
+        /* End overlay */
+        .end-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: #000;
+            z-index: 80;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .end-text {
+            font-size: 20vh;
+            font-weight: 900;
+            color: #2ecc71;
+            letter-spacing: 0.1em;
+            animation: end-pulse 2s ease-in-out infinite;
+        }
+        @keyframes end-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Stage message overlay */
+        .msg-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             z-index: 2000;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             padding: 5vh;
-            animation: slideInDown 0.5s ease-out;
+            animation: slide-in 0.4s ease-out;
         }
-        
-        .stage-message-overlay.show {
-            display: flex;
-        }
-        
-        @keyframes slideInDown {
-            from {
-                transform: translateY(-100%);
-            }
-            to {
-                transform: translateY(0);
-            }
-        }
-        
-        @keyframes slideOutUp {
-            from {
-                transform: translateY(0);
-            }
-            to {
-                transform: translateY(-100%);
-            }
-        }
-        
-        .stage-message-overlay.hiding {
-            animation: slideOutUp 0.5s ease-in forwards;
-        }
-        
-        .message-icon {
-            font-size: 15vh;
-            margin-bottom: 3vh;
-            animation: bounce 2s infinite;
-            filter: drop-shadow(0 0 20px rgba(255, 255, 255, 0.5));
-        }
-        
-        @keyframes bounce {
-            0%, 100% {
-                transform: translateY(0);
-            }
-            50% {
-                transform: translateY(-2vh);
-            }
-        }
-        
-        .message-content {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
-            border-radius: 3vh;
-            padding: 5vh 8vh;
-            max-width: 90vw;
-            text-align: center;
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        
-        .message-title {
-            font-size: 4vh;
-            font-weight: 700;
-            letter-spacing: 0.3em;
-            text-transform: uppercase;
-            margin-bottom: 3vh;
-            color: rgba(255, 255, 255, 0.9);
-        }
-        
-        .message-text {
+        .msg-overlay.show { display: flex; }
+        .msg-overlay.hiding { animation: slide-out 0.4s ease-in forwards; }
+        @keyframes slide-in { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+        @keyframes slide-out { from { transform: translateY(0); } to { transform: translateY(-100%); } }
+
+        .msg-text {
             font-size: 8vh;
             font-weight: 900;
+            text-align: center;
             line-height: 1.3;
-            color: #ffffff;
-            text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-            word-wrap: break-word;
-            max-height: 50vh;
-            overflow-y: auto;
+            max-width: 85vw;
         }
-        
-        .message-timer {
+        .msg-timer {
             margin-top: 4vh;
-            font-size: 3vh;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.8);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 1vh;
+            font-size: 2.5vh;
+            font-weight: 300;
+            color: rgba(255,255,255,0.7);
         }
-        
-        .message-timer-bar {
+        .msg-bar {
             width: 30vw;
-            height: 1vh;
-            background: rgba(255, 255, 255, 0.2);
+            height: 0.4vh;
+            background: rgba(255,255,255,0.2);
             border-radius: 1vh;
-            overflow: hidden;
             margin-top: 2vh;
+            overflow: hidden;
         }
-        
-        .message-timer-fill {
+        .msg-bar-fill {
             height: 100%;
-            background: linear-gradient(90deg, #fff 0%, rgba(255,255,255,0.7) 100%);
+            background: #fff;
             transition: width 1s linear;
             border-radius: 1vh;
         }
-        
-        /* Minimized timer corner display */
-        .minimized-timer {
+
+        /* Minimized timer corner */
+        .mini-timer {
             display: none;
             position: fixed;
             bottom: 3vh;
             right: 3vh;
-            background: rgba(0, 0, 0, 0.7);
-            backdrop-filter: blur(10px);
-            padding: 2vh 3vh;
-            border-radius: 2vh;
-            border: 2px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0,0,0,0.8);
+            padding: 1.5vh 2.5vh;
+            border-radius: 1.5vh;
             z-index: 2001;
         }
-        
-        .minimized-timer.show {
-            display: block;
-        }
-        
-        .minimized-activity {
-            font-size: 2vh;
-            font-weight: 600;
-            color: rgba(255, 255, 255, 0.7);
-            margin-bottom: 1vh;
-            text-transform: uppercase;
-            letter-spacing: 0.2em;
-        }
-        
-        .minimized-time {
-            font-size: 5vh;
-            font-weight: 900;
-            color: #ffffff;
-            font-family: 'Poppins', monospace;
-        }
-        
-        /* Flip Card Style */
-        .flip-card {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        
-.flip-number {
-    background: #ffffff;
-    color: #000000;
-    font-size: 28vh; /* Increased from 20vh */
-    font-weight: 900;
-    font-family: 'Poppins', sans-serif;
-    width: 30vh; /* Increased from 24vh */
-    height: 34vh; /* Increased from 28vh */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 3vh; /* Increased from 2.5vh */
-    padding: 4vh 6vh; /* Increased from 3vh 5vh */
-    position: relative;
-    transition: background-color 0.5s ease, color 0.5s ease, transform 0.3s ease;
-    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5); /* Added shadow for prominence */
-    border: 4px solid rgba(255, 255, 255, 0.1); /* Added border for definition */
-}
-        
-        /* Warning States */
-        .flip-number.warning-10 {
-            background: #f39c12;
-            color: #ffffff;
-            animation: warningPulse 2s infinite;
-        }
-        
-        .flip-number.warning-final {
-            background: #e74c3c;
-            color: #ffffff;
-            animation: criticalPulse 1s infinite;
-        }
-        
-        /* Critical Flash for Countdown Timer TIME UP */
-        .time-card.critical-flash .flip-number {
-            background: #e74c3c;
-            color: #ffffff;
-            animation: criticalFlash 0.5s infinite;
-        }
-        
-        .time-card.warning-state .flip-number {
-            background: #f39c12;
-            color: #ffffff;
-            animation: warningPulse 2s infinite;
-        }
-        
-@keyframes criticalFlash {
-    0%, 100% { 
-        background: #e74c3c;
-        box-shadow: 0 0 60px rgba(231, 76, 60, 1); /* Increased from 40px */
-        transform: scale(1.02); /* Added slight scale */
-    }
-    50% { 
-        background: #c0392b;
-        box-shadow: 0 0 100px rgba(231, 76, 60, 1); /* Increased from 80px */
-        transform: scale(1.05); /* Added slight scale */
-    }
-}
-        
-.flip-label {
-    margin-top: 3vh; /* Increased from 2.5vh */
-    font-size: 3.5vh; /* Increased from 2.8vh */
-    font-weight: 700;
-    letter-spacing: 4px; /* Increased from 3px */
-    color: rgba(255, 255, 255, 0.7); /* Brighter from 0.6 */
-    text-transform: uppercase;
-    transition: color 0.5s ease;
-}
-        
-        .flip-card.warning-10 .flip-label {
-            color: #f39c12;
-        }
-        
-        .flip-card.warning-final .flip-label {
-            color: #e74c3c;
-        }
-        
-        /* Colon Separator */
-.colon {
-    font-size: 24vh; /* Increased from 18vh */
-    font-weight: 900;
-    color: #ffffff;
-    margin: 0 2vw; /* Increased from 1.5vw */
-    line-height: 34vh; /* Match new flip-number height */
-    font-family: 'Poppins', sans-serif;
-    transition: color 0.5s ease;
-    text-shadow: 0 10px 30px rgba(255, 255, 255, 0.3); /* Added shadow */
-}
-        
-        .colon.warning-10 {
-            color: #f39c12;
-        }
-        
-        .colon.warning-final {
-            color: #e74c3c;
-        }
-        
-        /* Progress Bar Container */
-.progress-container {
-    position: absolute;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 4vh; /* Increased from 3vh */
-    background: rgba(255, 255, 255, 0.15); /* Brighter from 0.1 */
-    z-index: 90;
-    display: flex;
-    align-items: center;
-}
-        .progress-bar {
-            height: 100%;
-            background: #2ecc71;
-            transition: width 1s linear, background-color 0.5s ease;
-            width: 100%;
-            box-shadow: 0 0 20px rgba(46, 204, 113, 0.5);
-        }
-        
-        .progress-bar.warning-10 {
-            background: #f39c12;
-            box-shadow: 0 0 20px rgba(243, 156, 18, 0.5);
-        }
-        
-        .progress-bar.warning-final {
-            background: #e74c3c;
-            box-shadow: 0 0 20px rgba(231, 76, 60, 0.5);
-        }
-        
-        /* Program End State */
-        .end-overlay {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: #000000;
-            z-index: 80;
-            justify-content: center;
-            align-items: center;
-            flex-direction: column;
-        }
-        
-        .end-text {
-            font-size: 25vh;
-            font-weight: 900;
-            color: #2ecc71;
-            letter-spacing: 15px;
-            animation: endPulse 2s ease-in-out infinite;
-            font-family: 'Poppins', sans-serif;
-        }
-        
-        .end-subtext {
-            font-size: 5vh;
-            font-weight: 400;
-            color: rgba(46, 204, 113, 0.7);
-            margin-top: 4vh;
-            letter-spacing: 4px;
-        }
-        
-        /* Animations */
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-        
-        @keyframes blink {
-            0%, 50% { opacity: 1; }
-            51%, 100% { opacity: 0.3; }
-        }
-        
-@keyframes warningPulse {
-    0%, 100% { 
-        transform: scale(1.01); /* Slightly increased */
-        box-shadow: 0 0 30px rgba(243, 156, 18, 0.6); /* Increased from 20px */
-    }
-    50% { 
-        transform: scale(1.04); /* Increased from 1.02 */
-        box-shadow: 0 0 60px rgba(243, 156, 18, 0.9); /* Increased from 40px */
-    }
-}
-        
-@keyframes criticalPulse {
-    0%, 100% { 
-        transform: scale(1.02); /* Increased base scale */
-        box-shadow: 0 0 40px rgba(231, 76, 60, 0.8); /* Increased from 30px */
-    }
-    50% { 
-        transform: scale(1.08); /* Increased from 1.05 */
-        box-shadow: 0 0 80px rgba(231, 76, 60, 1); /* Increased from 60px */
-    }
-}
-        
-        @keyframes endPulse {
-            0%, 100% { 
-                transform: scale(1);
-                text-shadow: 0 0 30px rgba(46, 204, 113, 0.5);
-            }
-            50% { 
-                transform: scale(1.05);
-                text-shadow: 0 0 60px rgba(46, 204, 113, 1);
-            }
-        }
-        
-        /* Waiting State */
-        .waiting-container {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .waiting-container.active {
-            display: flex;
-        }
-        
-        .waiting-time {
-            font-size: 30vh;
-            font-weight: 900;
-            color: #f1c40f;
-            margin: 4vh 0;
-            font-family: 'Poppins', sans-serif;
-        }
-        
-        /* Percentage Display - Top Right next to Status */
-.percentage-display {
-    position: absolute;
-    top: 2.5vh;
-    right: 50%;
-    transform: translateX(50%);
-    font-size: 6vh; /* Increased from 5vh */
-    font-weight: 800; /* Increased from 700 */
-    color: rgba(255, 255, 255, 0.5); /* Brighter from 0.4 */
-    letter-spacing: 3px; /* Increased from 2px */
-    z-index: 85;
-    transition: color 0.5s ease;
-    text-shadow: 0 2px 10px rgba(255, 255, 255, 0.2);
-}
-        
-        .percentage-display.warning-10 {
-            color: #f39c12;
-        }
-        
-        .percentage-display.warning-final {
-            color: #e74c3c;
-            animation: pulse 1s infinite;
-        }
-        
-        /* Responsive adjustments */
-@media (max-width: 768px) {
-    .flip-number {
-        font-size: 18vh; /* Increased from 15vh */
-        width: 22vh; /* Increased from 18vh */
-        height: 26vh; /* Increased from 22vh */
-    }
-    .colon {
-        font-size: 16vh; /* Increased from 13vh */
-        line-height: 26vh; /* Match new height */
-    }
-    .activity-name {
-        font-size: 6vh; /* Increased from 5vh */
-        letter-spacing: 6px; /* Adjusted for mobile */
-    }
-    .time-label {
-        font-size: 2.8vh;
-        letter-spacing: 5px;
-        margin-bottom: 6vh;
-    }
-    .flip-label {
-        font-size: 2.8vh;
-    }
-    .time-up-message {
-        font-size: 20vh; /* Increased from 15vh */
-    }
-    .percentage-display {
-        font-size: 4.5vh; /* Adjusted for mobile */
-    }
-}
+        .mini-timer.show { display: block; }
+        .mini-timer .label { font-size: 1.5vh; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 0.2em; }
+        .mini-timer .time { font-size: 4vh; font-weight: 900; }
 
-@media (min-width: 1920px) {
-    .flip-number {
-        font-size: 35vh;
-        width: 38vh;
-        height: 42vh;
-    }
-    .colon {
-        font-size: 30vh;
-        line-height: 42vh;
-    }
-    .flip-label {
-        font-size: 4.5vh;
-    }
-}
-        
-        /* Hidden by default */
-        .normal-view {
-            display: none;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            width: 100%;
+        @media (max-width: 768px) {
+            .clock-time, .countdown .num, .waiting-countdown, .time-up { font-size: 18vh; }
+            .countdown .sep { font-size: 14vh; }
+            .activity-name { font-size: 4vh; }
         }
     </style>
 </head>
 <body>
-    <!-- Top Bar with Current Time and Status -->
-    <div class="top-bar">
-        <div class="current-time" id="currentTime">00:00</div>
-        <div class="percentage-display" id="percentageDisplay">100%</div>
-        <div class="status-badge status-stopped" id="statusBadge">STOPPED</div>
-    </div>
-
-    <!-- Main Container -->
-    <div class="container" id="mainContainer">
-        
-        <!-- Clock Mode (Default when stopped) -->
+    <div class="container">
+        <!-- Clock (idle) -->
         <div class="clock-view" id="clockView">
-            <div class="current-time-main" id="currentTimeMain">00:00</div>
-            <div class="current-date" id="currentDate">Monday, January 1, 2025</div>
+            <div class="clock-time" id="clockTime">00:00</div>
+            <div class="clock-date" id="clockDate"></div>
         </div>
-        
-        <!-- Normal Countdown View -->
-        <div class="normal-view" id="normalView" style="display: none;">
-            <!-- Activity Name (Caption) -->
+
+        <!-- Timer view -->
+        <div class="normal-view" id="normalView">
             <div class="activity-name" id="activityName">READY</div>
-            
-            <!-- Time Remaining Label -->
-            <div class="time-label">TIME REMAINING</div>
-            
-            <!-- Countdown Container -->
-            <div class="countdown-container" id="countdownContainer">
-                <!-- Hours -->
-                <div class="flip-card" id="hoursCard">
-                    <div class="flip-number" id="hours">00</div>
-                    <div class="flip-label">HOURS</div>
-                </div>
-                
-                <!-- Colon -->
-                <div class="colon" id="colon1">:</div>
-                
-                <!-- Minutes -->
-                <div class="flip-card" id="minutesCard">
-                    <div class="flip-number" id="minutes">00</div>
-                    <div class="flip-label">MINUTES</div>
-                </div>
-                
-                <!-- Colon -->
-                <div class="colon" id="colon2">:</div>
-                
-                <!-- Seconds -->
-                <div class="flip-card" id="secondsCard">
-                    <div class="flip-number" id="seconds">00</div>
-                    <div class="flip-label">SECONDS</div>
-                </div>
+            <div class="countdown" id="countdown">
+                <span class="num" id="hours">00</span>
+                <span class="sep">:</span>
+                <span class="num" id="minutes">00</span>
+                <span class="sep">:</span>
+                <span class="num" id="seconds">00</span>
             </div>
-            
-            <!-- TIME UP Message (shown in final minutes) -->
-            <div class="time-up-message" id="timeUpMessage">TIME UP</div>
+            <div class="time-up" id="timeUpMessage">TIME UP</div>
         </div>
-        
-        <!-- Waiting State View -->
-        <div class="waiting-container" id="waitingView">
+
+        <!-- Waiting state -->
+        <div class="waiting-view" id="waitingView">
             <div class="activity-name" id="waitingProgramName"></div>
-            <div class="time-label">STARTS AT</div>
-            <div class="waiting-time" id="waitingTime">09:30</div>
+            <div class="waiting-label">starting in</div>
+            <div class="waiting-countdown" id="waitingCountdown">00:00:00</div>
+            <div class="waiting-meta" id="waitingTime"></div>
         </div>
-        
     </div>
 
-    <!-- Progress Bar -->
-    <div class="progress-container">
-        <div class="progress-bar" id="progressBar"></div>
+    <!-- Queued banner -->
+    <div class="queued-banner" id="queuedBanner">
+        <span class="label">Up Next</span>
+        <span id="queuedName"></span>
+        <span id="queuedCountdown"></span>
     </div>
-    
-    <!-- Program End Overlay -->
+
+    <!-- Progress bar -->
+    <div class="progress-bar-container">
+        <div class="progress-fill" id="progressBar"></div>
+    </div>
+
+    <!-- End overlay -->
     <div class="end-overlay" id="endOverlay">
         <div class="end-text">THE END</div>
-        <div class="end-subtext">Program Complete</div>
     </div>
-    
-    <!-- Stage Message Overlay -->
-    <div class="stage-message-overlay" id="stageMessageOverlay">
-        <div class="message-icon">📢</div>
-        <div class="message-content">
-            <div class="message-title">Message from Control</div>
-            <div class="message-text" id="stageMessageText">Your message here</div>
-            <div class="message-timer">
-                <i class="fas fa-clock"></i>
-                <span id="messageTimeRemaining">0:00</span>
-            </div>
-            <div class="message-timer-bar">
-                <div class="message-timer-fill" id="messageTimerFill"></div>
-            </div>
-        </div>
+
+    <!-- Stage message overlay -->
+    <div class="msg-overlay" id="stageMessageOverlay">
+        <div class="msg-text" id="stageMessageText"></div>
+        <div class="msg-timer" id="messageTimeRemaining"></div>
+        <div class="msg-bar"><div class="msg-bar-fill" id="messageTimerFill"></div></div>
     </div>
-    
-    <!-- Minimized Timer (shows when message is displayed) -->
-    <div class="minimized-timer" id="minimizedTimer">
-        <div class="minimized-activity" id="minimizedActivity">WORSHIP</div>
-        <div class="minimized-time" id="minimizedTime">00:00</div>
+
+    <!-- Minimized timer -->
+    <div class="mini-timer" id="minimizedTimer">
+        <div class="label" id="minimizedActivity"></div>
+        <div class="time" id="minimizedTime">00:00</div>
     </div>
 
     <script>
@@ -779,472 +342,266 @@
         let showingEndScreen = false;
         let endScreenTimer = null;
         let totalProgramSeconds = 0;
-        let messageEndTime = null;
-        let messageCheckInterval = null;
-        
-        // Check for active stage message
-        function checkStageMessage() {
-            fetch('/api/stage_message')
-                .then(response => response.json())
-                .then(data => {
-                    const overlay = document.getElementById('stageMessageOverlay');
-                    const minimizedTimer = document.getElementById('minimizedTimer');
-                    
-                    if (data.has_message && data.message && !data.expired) {
-                        // Show message overlay
-                        if (!overlay.classList.contains('show')) {
-                            overlay.classList.remove('hiding');
-                            overlay.classList.add('show');
-                            minimizedTimer.classList.add('show');
-                        }
-                        
-                        // Update message text
-                        document.getElementById('stageMessageText').textContent = data.message;
-                        
-                        // Update minimized timer with current activity
-                        fetch('/api/timer_status')
-                            .then(r => r.json())
-                            .then(timerData => {
-                                document.getElementById('minimizedActivity').textContent = timerData.current_activity || 'READY';
-                                document.getElementById('minimizedTime').textContent = timerData.time_remaining || '00:00';
-                            });
-                        
-                        // Calculate time remaining for message
-                        const now = new Date();
-                        const endTime = new Date(data.end_time);
-                        const totalDuration = data.duration_seconds * 1000;
-                        const timeRemaining = Math.max(0, endTime - now);
-                        const seconds = Math.floor(timeRemaining / 1000);
-                        const minutes = Math.floor(seconds / 60);
-                        const secs = seconds % 60;
-                        
-                        document.getElementById('messageTimeRemaining').textContent = 
-                            `${minutes}:${secs.toString().padStart(2, '0')}`;
-                        
-                        // Update progress bar
-                        const percentage = (timeRemaining / totalDuration) * 100;
-                        document.getElementById('messageTimerFill').style.width = percentage + '%';
-                        
-                        // Auto-hide when expired
-                        if (timeRemaining <= 0) {
-                            hideStageMessage();
-                        }
-                    } else {
-                        // Hide message overlay
-                        hideStageMessage();
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking stage message:', error);
-                });
-        }
-        
-        function hideStageMessage() {
-            const overlay = document.getElementById('stageMessageOverlay');
-            const minimizedTimer = document.getElementById('minimizedTimer');
-            
-            if (overlay.classList.contains('show')) {
-                overlay.classList.add('hiding');
-                setTimeout(() => {
-                    overlay.classList.remove('show', 'hiding');
-                }, 500);
-                minimizedTimer.classList.remove('show');
-            }
-        }
-        
+
         function updateCurrentTime() {
             const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            
-            // Update top bar time
-            document.getElementById('currentTime').textContent = `${hours}:${minutes}`;
-            
-            // Update main clock display
-            document.getElementById('currentTimeMain').textContent = `${hours}:${minutes}`;
-            
-            // Update date
-            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            const dateStr = now.toLocaleDateString('en-US', options);
-            document.getElementById('currentDate').textContent = dateStr;
+            const h = now.getHours().toString().padStart(2, '0');
+            const m = now.getMinutes().toString().padStart(2, '0');
+            document.getElementById('clockTime').textContent = h + ':' + m;
+            const opts = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('clockDate').textContent = now.toLocaleDateString('en-US', opts);
         }
-        
-        function updateDisplay() {
-            // First check if there's an active countdown timer - it takes priority
-            fetch('/api/countdown_timer')
-                .then(response => response.json())
-                .then(countdownData => {
-                    if (countdownData.is_active) {
-                        // Show countdown timer view
-                        displayCountdownTimer(countdownData);
-                        return; // Skip regular timer display
+
+        function checkStageMessage() {
+            fetch('/api/stage_message').then(r => r.json()).then(data => {
+                const overlay = document.getElementById('stageMessageOverlay');
+                const mini = document.getElementById('minimizedTimer');
+                if (data.has_message && data.message && !data.expired) {
+                    if (!overlay.classList.contains('show')) {
+                        overlay.classList.remove('hiding');
+                        overlay.classList.add('show');
+                        mini.classList.add('show');
                     }
-                    
-                    // No countdown active, proceed with regular timer display
-                    fetch('/api/timer_status')
-                        .then(response => response.json())
-                        .then(data => {
-                            displayRegularTimer(data);
-                        });
-                });
+                    document.getElementById('stageMessageText').textContent = data.message;
+                    fetch('/api/timer_status').then(r => r.json()).then(t => {
+                        document.getElementById('minimizedActivity').textContent = t.current_activity || '';
+                        document.getElementById('minimizedTime').textContent = t.time_remaining || '00:00';
+                    });
+                    const now = new Date();
+                    const end = new Date(data.end_time);
+                    const total = data.duration_seconds * 1000;
+                    const remaining = Math.max(0, end - now);
+                    const secs = Math.floor(remaining / 1000);
+                    document.getElementById('messageTimeRemaining').textContent =
+                        Math.floor(secs / 60) + ':' + (secs % 60).toString().padStart(2, '0');
+                    document.getElementById('messageTimerFill').style.width = (remaining / total * 100) + '%';
+                    if (remaining <= 0) hideStageMessage();
+                } else {
+                    hideStageMessage();
+                }
+            }).catch(() => {});
         }
-        
-        function displayCountdownTimer(countdownData) {
-            const statusBadge = document.getElementById('statusBadge');
+
+        function hideStageMessage() {
+            const overlay = document.getElementById('stageMessageOverlay');
+            const mini = document.getElementById('minimizedTimer');
+            if (overlay.classList.contains('show')) {
+                overlay.classList.add('hiding');
+                setTimeout(() => overlay.classList.remove('show', 'hiding'), 400);
+                mini.classList.remove('show');
+            }
+        }
+
+        function updateDisplay() {
+            fetch('/api/countdown_timer').then(r => r.json()).then(cd => {
+                if (cd.is_active) { displayCountdownTimer(cd); return; }
+                fetch('/api/timer_status').then(r => r.json()).then(displayRegularTimer);
+            });
+        }
+
+        function displayCountdownTimer(cd) {
+            const clockView = document.getElementById('clockView');
             const normalView = document.getElementById('normalView');
             const waitingView = document.getElementById('waitingView');
-            const clockView = document.getElementById('clockView');
             const endOverlay = document.getElementById('endOverlay');
-            
-            // Hide clock and waiting views
+
             clockView.classList.add('hidden');
             waitingView.classList.remove('active');
-            
-            // Show countdown
             normalView.style.display = 'flex';
-            
-            // Update status badge
-            statusBadge.textContent = 'COUNTDOWN';
-            statusBadge.className = 'status-badge status-running';
-            
-            // Update activity name
-            document.getElementById('activityName').textContent = countdownData.name || 'COUNTDOWN';
-            
-            if (countdownData.is_expired) {
-                // Show TIME UP with flashing effect
+
+            document.getElementById('activityName').textContent = cd.name || 'COUNTDOWN';
+
+            if (cd.is_expired) {
                 document.getElementById('hours').textContent = '00';
                 document.getElementById('minutes').textContent = '00';
                 document.getElementById('seconds').textContent = '00';
-                
-                // Add flashing red effect
-                const hoursCard = document.getElementById('hoursCard');
-                const minutesCard = document.getElementById('minutesCard');
-                const secondsCard = document.getElementById('secondsCard');
-                
-                hoursCard.className = 'time-card critical-flash';
-                minutesCard.className = 'time-card critical-flash';
-                secondsCard.className = 'time-card critical-flash';
-                
-                // Show TIME UP overlay
                 endOverlay.style.display = 'flex';
-                document.getElementById('endScreenTitle').textContent = 'TIME UP!';
-                document.getElementById('endScreenSubtitle').textContent = countdownData.name || 'COUNTDOWN COMPLETE';
-                
-                // Update activity name
-                document.getElementById('activityName').textContent = '🔔 TIME UP! 🔔';
+                document.querySelector('.end-text').textContent = 'TIME UP';
             } else {
-                // Display remaining time
-                const timeText = countdownData.time_remaining || '00:00:00';
-                const parts = timeText.split(':');
-                
+                const parts = (cd.time_remaining || '00:00:00').split(':');
                 if (parts.length === 3) {
                     document.getElementById('hours').textContent = parts[0].padStart(2, '0');
                     document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
                     document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
-                    
-                    // Parse total seconds for warnings
-                    const hours = parseInt(parts[0]) || 0;
-                    const minutes = parseInt(parts[1]) || 0;
-                    const seconds = parseInt(parts[2]) || 0;
-                    const totalSeconds = hours * 3600 + minutes * 60 + seconds;
-                    
-                    // Apply warning effects based on remaining time
-                    const hoursCard = document.getElementById('hoursCard');
-                    const minutesCard = document.getElementById('minutesCard');
-                    const secondsCard = document.getElementById('secondsCard');
-                    
-                    if (totalSeconds <= 10) {
-                        // Critical - last 10 seconds
-                        hoursCard.className = 'time-card critical-flash';
-                        minutesCard.className = 'time-card critical-flash';
-                        secondsCard.className = 'time-card critical-flash';
-                    } else if (totalSeconds <= 60) {
-                        // Warning - last minute
-                        hoursCard.className = 'time-card warning-state';
-                        minutesCard.className = 'time-card warning-state';
-                        secondsCard.className = 'time-card warning-state';
-                    } else {
-                        // Normal
-                        hoursCard.className = 'time-card';
-                        minutesCard.className = 'time-card';
-                        secondsCard.className = 'time-card';
-                    }
+
+                    const total = (parseInt(parts[0])||0)*3600 + (parseInt(parts[1])||0)*60 + (parseInt(parts[2])||0);
+                    const ctr = document.getElementById('countdown');
+                    ctr.classList.remove('warn-orange', 'warn-red');
+                    if (total <= 10) ctr.classList.add('warn-red');
+                    else if (total <= 60) ctr.classList.add('warn-orange');
                 }
-                
-                // Hide end overlay
                 endOverlay.style.display = 'none';
             }
         }
-        
+
         function displayRegularTimer(data) {
-            const statusBadge = document.getElementById('statusBadge');
+            const clockView = document.getElementById('clockView');
             const normalView = document.getElementById('normalView');
             const waitingView = document.getElementById('waitingView');
-            const clockView = document.getElementById('clockView');
-            const warningOverlay = document.getElementById('warningOverlay');
-            const warningText = document.getElementById('warningText');
-            const criticalOverlay = document.getElementById('criticalOverlay');
             const endOverlay = document.getElementById('endOverlay');
             const progressBar = document.getElementById('progressBar');
-            const percentageDisplay = document.getElementById('percentageDisplay');
-            
-            // Get all elements that need warning classes
-            const hoursCard = document.getElementById('hoursCard');
-            const minutesCard = document.getElementById('minutesCard');
-            const secondsCard = document.getElementById('secondsCard');
-            const hoursNum = document.getElementById('hours');
-            const minutesNum = document.getElementById('minutes');
-            const secondsNum = document.getElementById('seconds');
-            const colon1 = document.getElementById('colon1');
-            const colon2 = document.getElementById('colon2');
-            
-            // Check if we're in waiting mode (only if not stopped)
+
+            // Waiting state
             if (data.waiting_for_start && !data.is_running) {
-                waitingForStart = true;
-                scheduledStartTime = data.scheduled_start_time || '';
-                waitingProgramName = data.waiting_program_name || '';
-                
-                // Show waiting view, hide clock
                 clockView.classList.add('hidden');
-                clockView.classList.remove('secondary');
                 normalView.style.display = 'none';
                 waitingView.classList.add('active');
-                
-                document.getElementById('waitingProgramName').textContent = waitingProgramName;
-                document.getElementById('waitingTime').textContent = scheduledStartTime;
-                
-                statusBadge.textContent = 'STARTING SOON';
-                statusBadge.className = 'status-badge status-waiting';
-                
-                // Hide overlays
+
+                document.getElementById('waitingProgramName').textContent = data.waiting_program_name || '';
+                document.getElementById('waitingTime').textContent = 'Starts at ' + (data.scheduled_start_time || '');
+
+                if (data.scheduled_start_time) {
+                    const parts = data.scheduled_start_time.split(':');
+                    if (parts.length === 2) {
+                        const now = new Date(), target = new Date();
+                        target.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+                        const diff = Math.max(0, Math.floor((target - now) / 1000));
+                        const pad = n => String(n).padStart(2, '0');
+                        document.getElementById('waitingCountdown').textContent =
+                            pad(Math.floor(diff/3600)) + ':' + pad(Math.floor((diff%3600)/60)) + ':' + pad(diff%60);
+                    }
+                }
+
                 endOverlay.style.display = 'none';
                 progressBar.style.width = '100%';
-                progressBar.className = 'progress-bar';
-                percentageDisplay.textContent = '100%';
-                percentageDisplay.className = 'percentage-display';
+                progressBar.className = 'progress-fill';
                 showingEndScreen = false;
                 if (endScreenTimer) clearTimeout(endScreenTimer);
-                
                 return;
             } else {
-                // Clear waiting state
-                waitingForStart = false;
-                scheduledStartTime = '';
-                waitingProgramName = '';
                 waitingView.classList.remove('active');
             }
-            
-            // Determine if we should show clock or countdown
+
+            // Queued banner
+            const queuedBanner = document.getElementById('queuedBanner');
+            const qp = data.queued_program;
+            if (qp && qp.has_queued && data.is_running) {
+                queuedBanner.classList.add('active');
+                document.getElementById('queuedName').textContent = qp.program_name;
+                const parts = qp.scheduled_start_time.split(':');
+                if (parts.length === 2) {
+                    const now = new Date(), target = new Date();
+                    target.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+                    const diff = Math.max(0, Math.floor((target - now) / 1000));
+                    const pad = n => String(n).padStart(2, '0');
+                    document.getElementById('queuedCountdown').textContent =
+                        'in ' + pad(Math.floor(diff/3600)) + ':' + pad(Math.floor((diff%3600)/60)) + ':' + pad(diff%60);
+                }
+            } else {
+                queuedBanner.classList.remove('active');
+            }
+
+            // Running or stopped
             if (data.is_running) {
-                // RUNNING - Show countdown as main, clock as secondary
-                clockView.classList.remove('hidden');
-                clockView.classList.add('secondary');
+                clockView.classList.add('hidden');
                 normalView.style.display = 'flex';
             } else {
-                // STOPPED - Show clock as main, hide countdown
                 clockView.classList.remove('hidden');
-                clockView.classList.remove('secondary');
                 normalView.style.display = 'none';
             }
-            
-            // Update activity name
+
             document.getElementById('activityName').textContent = data.current_activity || 'READY';
-            
-            // Parse time remaining
+
+            // Parse time
             let timeText = data.time_remaining || '00:00:00';
             let totalSeconds = 0;
-            
-            if (timeText && timeText.includes(':')) {
+            if (timeText.includes(':')) {
                 const parts = timeText.split(':');
                 if (parts.length === 3) {
-                    const hours = parseInt(parts[0]) || 0;
-                    const minutes = parseInt(parts[1]) || 0;
-                    const seconds = parseInt(parts[2]) || 0;
-                    totalSeconds = hours * 3600 + minutes * 60 + seconds;
-                    
-                    // Update display
+                    totalSeconds = (parseInt(parts[0])||0)*3600 + (parseInt(parts[1])||0)*60 + (parseInt(parts[2])||0);
                     document.getElementById('hours').textContent = parts[0].padStart(2, '0');
                     document.getElementById('minutes').textContent = parts[1].padStart(2, '0');
                     document.getElementById('seconds').textContent = parts[2].padStart(2, '0');
                 } else if (parts.length === 2) {
-                    const minutes = parseInt(parts[0]) || 0;
-                    const seconds = parseInt(parts[1]) || 0;
-                    totalSeconds = minutes * 60 + seconds;
-                    
+                    totalSeconds = (parseInt(parts[0])||0)*60 + (parseInt(parts[1])||0);
                     document.getElementById('hours').textContent = '00';
                     document.getElementById('minutes').textContent = parts[0].padStart(2, '0');
                     document.getElementById('seconds').textContent = parts[1].padStart(2, '0');
                 }
             }
-            
-            // TIME UP logic - show instead of countdown in final minutes
-            const countdownContainer = document.getElementById('countdownContainer');
-            const timeUpMessage = document.getElementById('timeUpMessage');
-            
-            // Set total program seconds on first run or when activity changes
+
+            // TIME UP logic
+            const countdown = document.getElementById('countdown');
+            const timeUp = document.getElementById('timeUpMessage');
+
             if (data.is_running && !data.is_paused) {
-                if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
+                if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds)
                     totalProgramSeconds = totalSeconds;
-                }
             }
-            
-            // Determine if we should show TIME UP based on:
-            // - Activities >= 30 minutes: show TIME UP in last 2 minutes (120 seconds)
-            // - Activities < 30 minutes: show TIME UP in last 1 minute (60 seconds)
+
             let showTimeUp = false;
             if (data.is_running && !data.is_paused && totalProgramSeconds > 0) {
-                const activityDuration = totalProgramSeconds;
-                
-                if (activityDuration >= 1800) {
-                    // 30+ minutes: show TIME UP in last 2 minutes
-                    showTimeUp = totalSeconds <= 120 && totalSeconds > 0;
-                } else {
-                    // < 30 minutes: show TIME UP in last 1 minute
-                    showTimeUp = totalSeconds <= 60 && totalSeconds > 0;
-                }
+                showTimeUp = totalProgramSeconds >= 1800
+                    ? (totalSeconds <= 120 && totalSeconds > 0)
+                    : (totalSeconds <= 60 && totalSeconds > 0);
             }
-            
+
             if (showTimeUp) {
-                countdownContainer.classList.add('hide');
-                timeUpMessage.classList.add('show');
+                countdown.style.display = 'none';
+                timeUp.classList.add('show');
             } else {
-                countdownContainer.classList.remove('hide');
-                timeUpMessage.classList.remove('show');
+                countdown.style.display = 'flex';
+                timeUp.classList.remove('show');
             }
-            
-            // Handle different states
+
             if (data.is_running) {
-                if (data.is_paused) {
-                    statusBadge.textContent = 'PAUSED';
-                    statusBadge.className = 'status-badge status-paused';
-                } else {
-                    statusBadge.textContent = 'LIVE';
-                    statusBadge.className = 'status-badge status-running';
-                    
-                    // Set total program seconds on first run or when starting
-                    if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds) {
-                        totalProgramSeconds = totalSeconds;
+                if (totalProgramSeconds === 0 || totalSeconds > totalProgramSeconds)
+                    totalProgramSeconds = totalSeconds;
+
+                let pct = totalProgramSeconds > 0 ? (totalSeconds / totalProgramSeconds) * 100 : 0;
+                pct = Math.max(0, Math.min(100, pct));
+                progressBar.style.width = pct + '%';
+
+                // End of program
+                if (totalSeconds <= 0 && data.current_activity && data.current_activity !== 'READY') {
+                    if (!showingEndScreen) {
+                        showingEndScreen = true;
+                        endOverlay.style.display = 'flex';
+                        document.querySelector('.end-text').textContent = 'THE END';
+                        totalProgramSeconds = 0;
+                        if (endScreenTimer) clearTimeout(endScreenTimer);
+                        endScreenTimer = setTimeout(() => {
+                            showingEndScreen = false;
+                            endOverlay.style.display = 'none';
+                        }, 300000);
                     }
-                    
-                    // Calculate percentage remaining
-                    let percentage = totalProgramSeconds > 0 ? (totalSeconds / totalProgramSeconds) * 100 : 0;
-                    percentage = Math.max(0, Math.min(100, percentage));
-                    
-                    // Update progress bar
-                    progressBar.style.width = percentage + '%';
-                    percentageDisplay.textContent = Math.round(percentage) + '%';
-                    
-                    // Check for end of program (time = 0 and activity exists)
-                    if (totalSeconds <= 0 && data.current_activity && data.current_activity !== 'READY') {
-                        // Show "THE END" screen
-                        if (!showingEndScreen) {
-                            showingEndScreen = true;
-                            endOverlay.style.display = 'flex';
-                            totalProgramSeconds = 0; // Reset for next program
-                            
-                            // Auto-hide after 5 minutes (300 seconds)
-                            if (endScreenTimer) clearTimeout(endScreenTimer);
-                            endScreenTimer = setTimeout(() => {
-                                showingEndScreen = false;
-                                endOverlay.style.display = 'none';
-                            }, 300000); // 5 minutes
-                        }
-                        return;
-                    } else {
-                        // Clear end screen if showing
+                    return;
+                } else {
                     showingEndScreen = false;
                     endOverlay.style.display = 'none';
                     if (endScreenTimer) clearTimeout(endScreenTimer);
                 }
-                
-                // Apply warning classes based on percentage
-                // Clear all warning classes first
-                [hoursCard, minutesCard, secondsCard].forEach(card => {
-                    card.classList.remove('warning-10', 'warning-final');
-                });
-                [hoursNum, minutesNum, secondsNum].forEach(num => {
-                    num.classList.remove('warning-10', 'warning-final');
-                });
-                [colon1, colon2].forEach(col => {
-                    col.classList.remove('warning-10', 'warning-final');
-                });
-                progressBar.classList.remove('warning-10', 'warning-final');
-                percentageDisplay.classList.remove('warning-10', 'warning-final');
-                
-                // Apply appropriate warning level
+
+                // Warning states
+                countdown.classList.remove('warn-orange', 'warn-red');
+                progressBar.classList.remove('warn-orange', 'warn-red');
                 if (totalSeconds <= 60) {
-                    // FINAL MINUTE - Red
-                    [hoursCard, minutesCard, secondsCard].forEach(card => {
-                        card.classList.add('warning-final');
-                    });
-                    [hoursNum, minutesNum, secondsNum].forEach(num => {
-                        num.classList.add('warning-final');
-                    });
-                    [colon1, colon2].forEach(col => {
-                        col.classList.add('warning-final');
-                    });
-                    progressBar.classList.add('warning-final');
-                    percentageDisplay.classList.add('warning-final');
-                } else if (percentage <= 10) {
-                    // 10% REMAINING - Orange/Yellow
-                    [hoursCard, minutesCard, secondsCard].forEach(card => {
-                        card.classList.add('warning-10');
-                    });
-                    [hoursNum, minutesNum, secondsNum].forEach(num => {
-                        num.classList.add('warning-10');
-                    });
-                    [colon1, colon2].forEach(col => {
-                        col.classList.add('warning-10');
-                    });
-                    progressBar.classList.add('warning-10');
-                    percentageDisplay.classList.add('warning-10');
+                    countdown.classList.add('warn-red');
+                    progressBar.classList.add('warn-red');
+                } else if (pct <= 10) {
+                    countdown.classList.add('warn-orange');
+                    progressBar.classList.add('warn-orange');
                 }
+            } else {
+                countdown.classList.remove('warn-orange', 'warn-red');
+                progressBar.classList.remove('warn-orange', 'warn-red');
+                endOverlay.style.display = 'none';
+                showingEndScreen = false;
+                totalProgramSeconds = 0;
+                progressBar.style.width = '100%';
+                if (endScreenTimer) clearTimeout(endScreenTimer);
             }
-        } else {
-            statusBadge.textContent = 'STOPPED';
-            statusBadge.className = 'status-badge status-stopped';
-            
-            // Clear all warnings when stopped
-            [hoursCard, minutesCard, secondsCard].forEach(card => {
-                card.classList.remove('warning-10', 'warning-final');
-            });
-            [hoursNum, minutesNum, secondsNum].forEach(num => {
-                num.classList.remove('warning-10', 'warning-final');
-            });
-            [colon1, colon2].forEach(col => {
-                col.classList.remove('warning-10', 'warning-final');
-            });
-            progressBar.classList.remove('warning-10', 'warning-final');
-            percentageDisplay.classList.remove('warning-10', 'warning-final');
-            
-            endOverlay.style.display = 'none';
-            showingEndScreen = false;
-            totalProgramSeconds = 0;
-            progressBar.style.width = '100%';
-            percentageDisplay.textContent = '100%';
-            if (endScreenTimer) clearTimeout(endScreenTimer);
         }
-    }
-        
-        // Update current time immediately and every second
+
         updateCurrentTime();
         setInterval(updateCurrentTime, 1000);
-        
-        // Update timer display immediately and every second
         updateDisplay();
         setInterval(updateDisplay, 1000);
-        
-        // Check for stage messages immediately and every 2 seconds
         checkStageMessage();
         setInterval(checkStageMessage, 2000);
-        
-        // Handle visibility change
-        document.addEventListener('visibilitychange', function() {
-            if (!document.hidden) {
-                updateCurrentTime();
-                updateDisplay();
-                checkStageMessage();
-            }
+
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) { updateCurrentTime(); updateDisplay(); checkStageMessage(); }
         });
     </script>
 </body>

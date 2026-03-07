@@ -988,8 +988,41 @@ async function updateTimerStatus() {
         } else {
             liveScheduleCard.style.display = 'none';
         }
+
+        // Show/hide queued program card
+        const queuedCard = document.getElementById('queuedProgramCard');
+        const qp = status.queued_program;
+        if (qp && qp.has_queued) {
+            queuedCard.style.display = 'block';
+            document.getElementById('queuedProgramName').textContent = qp.program_name;
+            // Calculate countdown
+            const parts = qp.scheduled_start_time.split(':');
+            if (parts.length === 2) {
+                const now = new Date();
+                const target = new Date();
+                target.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
+                const diff = Math.max(0, Math.floor((target - now) / 1000));
+                const h = Math.floor(diff / 3600);
+                const m = Math.floor((diff % 3600) / 60);
+                const s = diff % 60;
+                const pad = n => String(n).padStart(2, '0');
+                document.getElementById('queuedProgramCountdown').textContent =
+                    'Starting in ' + pad(h) + ':' + pad(m) + ':' + pad(s) +
+                    '  (at ' + qp.scheduled_start_time + ')';
+            }
+        } else {
+            queuedCard.style.display = 'none';
+        }
     } catch (error) {
         console.error('Error updating timer status:', error);
+    }
+}
+
+async function clearQueue() {
+    try {
+        await fetch('/api/clear_queue', { method: 'POST' });
+    } catch (error) {
+        console.error('Error clearing queue:', error);
     }
 }
 // ============================================================================

@@ -44,24 +44,25 @@
         
         <!-- HOME TAB -->
         <div class="tab-content active" id="homeTab">
-            <!-- Auto-Start Notification (shown when program is scheduled) -->
-            <div class="card" id="autoStartCard" style="display: none; border-left: 4px solid #3498db; background: #e3f2fd;">
+            <!-- Queued Program Card -->
+            <div class="card" id="queuedProgramCard" style="display: none; border-left: 4px solid #f1c40f; background: #fef9e7;">
                 <div class="card-body" style="padding: 1rem;">
                     <div style="display: flex; align-items: center; gap: 1rem;">
-                        <div style="font-size: 2rem; color: #3498db;">
-                            <i class="fas fa-clock"></i>
+                        <div style="font-size: 2rem; color: #f1c40f;">
+                            <i class="fas fa-hourglass-half"></i>
                         </div>
                         <div style="flex: 1;">
                             <h4 style="margin: 0 0 0.25rem 0; color: #2c3e50;">
-                                <i class="fas fa-calendar-check"></i> Auto-Start Scheduled
+                                <i class="fas fa-layer-group"></i> Up Next
                             </h4>
-                            <p id="autoStartMessage" style="margin: 0; color: #34495e; font-size: 0.95rem;">
-                                Loading...
+                            <p id="queuedProgramName" style="margin: 0; color: #34495e; font-size: 1.05rem; font-weight: 600;">
                             </p>
-                            <p id="autoStartCountdown" style="margin: 0.5rem 0 0 0; font-weight: bold; color: #3498db; font-size: 1.1rem;">
-                                <!-- Countdown will appear here -->
+                            <p id="queuedProgramCountdown" style="margin: 0.5rem 0 0 0; font-weight: bold; color: #e67e22; font-size: 1.1rem;">
                             </p>
                         </div>
+                        <button class="btn btn-danger btn-sm" onclick="clearQueue()" title="Remove from queue" style="padding: 0.4rem 0.6rem;">
+                            <i class="fas fa-times"></i>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -115,7 +116,7 @@
                     <h3><i class="fas fa-list-alt"></i> Current Program</h3>
                     <i class="fas fa-chevron-down toggle"></i>
                 </div>
-                <div class="card-body open">
+                <div class="card-body">
                     <div id="currentProgramInfo">
                         <p class="empty-text">No program loaded</p>
                     </div>
@@ -134,7 +135,7 @@
                     <h3><i class="fas fa-broadcast-tower"></i> Live Schedule</h3>
                     <i class="fas fa-chevron-down toggle"></i>
                 </div>
-                <div class="card-body open">
+                <div class="card-body">
                     <p class="help-text"><i class="fas fa-info-circle"></i> Drag to reorder (temporary)</p>
                     <div id="liveScheduleList"></div>
                 </div>
@@ -146,7 +147,7 @@
                     <h3><i class="fas fa-bullhorn"></i> Send Message to Stage</h3>
                     <i class="fas fa-chevron-down toggle"></i>
                 </div>
-                <div class="card-body open">
+                <div class="card-body">
                     <p class="help-text"><i class="fas fa-info-circle"></i> Display a message on the kiosk screen</p>
                     
                     <div style="margin-bottom: 1rem;">
@@ -588,7 +589,7 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
-    <script src="/static/js/admin.js"></script>
+    <script src="/static/js/admin.js?v=3"></script>
     <script>
         // Tab switching function
         function switchTab(tabId, button) {
