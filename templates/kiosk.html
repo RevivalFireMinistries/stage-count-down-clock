@@ -566,6 +566,11 @@
             fetch('/api/stage_message').then(r=>r.json()).then(d => {
                 const mini = document.getElementById('miniTimer');
                 if (d.has_message && d.message && !d.expired) {
+                    // Use server-provided time_remaining (seconds) instead of client date parsing
+                    const rem = Math.max(0, (d.time_remaining || 0) * 1000);
+
+                    if (rem <= 0) { dismissMsg(); return; }
+
                     showScene('msgScene');
                     const msgEl = document.getElementById('msgText');
                     msgEl.textContent = d.message;
@@ -580,7 +585,6 @@
 
                     mini.classList.add('show');
 
-                    const rem = Math.max(0, new Date(d.end_time) - new Date());
                     const s = Math.floor(rem / 1000);
                     document.getElementById('msgCountdown').textContent =
                         Math.floor(s / 60) + ':' + pad(s % 60);
@@ -591,8 +595,6 @@
                         document.getElementById('miniLabel').textContent = t.current_activity || '';
                         document.getElementById('miniTime').textContent = t.time_remaining || '00:00';
                     });
-
-                    if (rem <= 0) dismissMsg();
                 } else {
                     dismissMsg();
                 }
