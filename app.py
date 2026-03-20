@@ -77,24 +77,100 @@ def update_waiting_from_queue():
         current_timer['scheduled_start_time'] = ''
         current_timer['waiting_program_name'] = ''
 
+def get_program_end_time(start_time_str, total_minutes):
+    """Calculate end time string from start time and total duration in minutes."""
+    try:
+        start = datetime.strptime(start_time_str, '%H:%M')
+        end = start + timedelta(minutes=total_minutes)
+        return end.strftime('%H:%M')
+    except ValueError:
+        return start_time_str
+
+
+def programs_overlap(start_a, dur_a, start_b, dur_b):
+    """Check if two programs overlap in time. Returns True if they overlap."""
+    try:
+        a_start = datetime.strptime(start_a, '%H:%M')
+        a_end = a_start + timedelta(minutes=dur_a)
+        b_start = datetime.strptime(start_b, '%H:%M')
+        b_end = b_start + timedelta(minutes=dur_b)
+        return a_start < b_end and b_start < a_end
+    except ValueError:
+        return False
+
+
+def resolve_overlap(prog_a, prog_b):
+    """Resolve overlap between two programs. Returns the winner.
+    Rules: remote beats local. If same source, newer (higher id) wins."""
+    a_source = prog_a['source'] or 'local'
+    b_source = prog_b['source'] or 'local'
+
+    if a_source != b_source:
+        # Remote takes priority over local
+        winner = prog_a if a_source == 'remote' else prog_b
+        loser = prog_b if a_source == 'remote' else prog_a
+    else:
+        # Same source: newer (higher id) wins
+        if prog_a['id'] >= prog_b['id']:
+            winner, loser = prog_a, prog_b
+        else:
+            winner, loser = prog_b, prog_a
+
+    print(f"[QUEUE] Overlap: '{winner['name']}' ({a_source}) beats '{loser['name']}' ({b_source})")
+    return winner
+
+
 def populate_queue_from_db():
-    """Populate the program queue from today's auto-start programs."""
+    """Populate the program queue from today's auto-start programs, resolving overlaps."""
     current_day = datetime.now().strftime('%A')
-    current_time = datetime.now().strftime('%H:%M')
 
     conn = init_database()
     c = conn.cursor()
+    # Fetch programs with their total duration from schedules
     c.execute('''
-        SELECT id, name, scheduled_start_time
-        FROM programs
-        WHERE day_of_week = ? AND auto_start = TRUE
-        ORDER BY scheduled_start_time
+        SELECT p.id, p.name, p.scheduled_start_time, p.source,
+               COALESCE(SUM(ps.duration_minutes), 0) as total_duration
+        FROM programs p
+        LEFT JOIN program_schedules ps ON ps.program_id = p.id
+        WHERE p.day_of_week = ? AND p.auto_start = TRUE
+        GROUP BY p.id
+        ORDER BY p.scheduled_start_time, p.id
     ''', (current_day,))
 
+    candidates = []
     for row in c.fetchall():
-        queue_add(row[0], row[1], row[2])
-
+        candidates.append({
+            'id': row[0],
+            'name': row[1],
+            'scheduled_start_time': row[2] or '00:00',
+            'source': row[3],
+            'duration': row[4] if row[4] > 0 else 5  # default 5 min if no schedule
+        })
     conn.close()
+
+    # Resolve overlaps: iterate and keep winners
+    resolved = []
+    for candidate in candidates:
+        conflict_idx = None
+        for i, existing in enumerate(resolved):
+            if programs_overlap(
+                candidate['scheduled_start_time'], candidate['duration'],
+                existing['scheduled_start_time'], existing['duration']
+            ):
+                conflict_idx = i
+                break
+
+        if conflict_idx is not None:
+            winner = resolve_overlap(candidate, resolved[conflict_idx])
+            resolved[conflict_idx] = winner
+        else:
+            resolved.append(candidate)
+
+    # Sort by start time and add to queue
+    resolved.sort(key=lambda x: x['scheduled_start_time'])
+    queue_clear()
+    for prog in resolved:
+        queue_add(prog['id'], prog['name'], prog['scheduled_start_time'])
 
     items = queue_get_all()
     if items:
