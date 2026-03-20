@@ -70,6 +70,21 @@
             --t-text-shadow: 0 0 40px rgba(251,146,60,0.5), 0 0 80px rgba(251,146,60,0.2);
         }
 
+        body.theme-sacred {
+            --t-bg: #030d08;
+            --t-glow: #a3e635;
+            --t-text: #d9f99d;
+            --t-dim: rgba(163,230,53,0.2);
+            --t-panel: rgba(163,230,53,0.04);
+            --t-panel-border: rgba(163,230,53,0.08);
+            --t-warn: #fbbf24;
+            --t-crit: #ef4444;
+            --t-green: #4ade80;
+            --t-gold: #fcd34d;
+            --t-shadow: 0 0 80px rgba(163,230,53,0.12), 0 0 200px rgba(163,230,53,0.04);
+            --t-text-shadow: 0 0 40px rgba(163,230,53,0.45), 0 0 80px rgba(163,230,53,0.15);
+        }
+
         body {
             background: var(--t-bg);
             color: var(--t-text);
@@ -209,6 +224,21 @@
             margin-top: 1.5vh;
             letter-spacing: 0.15em;
             text-transform: uppercase;
+        }
+        #idleScene .next-program {
+            font-size: clamp(0.8rem, 1.5vw, 1.4rem);
+            font-weight: 400;
+            color: var(--t-gold);
+            opacity: 0.5;
+            margin-top: 3vh;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            transition: opacity 0.4s ease;
+        }
+        #idleScene .next-program:empty { display: none; }
+        #idleScene .next-program .np-time {
+            font-weight: 700;
+            opacity: 1;
         }
 
         /* ── TIMER ── */
@@ -388,6 +418,7 @@
     <div class="scene active" id="idleScene">
         <div class="clock" id="idleClock">00:00</div>
         <div class="date" id="idleDate"></div>
+        <div class="next-program" id="nextProgram"></div>
     </div>
 
     <!-- Running Timer -->
@@ -702,6 +733,16 @@
                 showingEnd = false;
                 totalSec = 0;
                 if (endTimer) { clearTimeout(endTimer); endTimer = null; }
+
+                // Show next queued program on idle screen
+                const np = document.getElementById('nextProgram');
+                const qp2 = data.queued_program;
+                if (qp2 && qp2.has_queued && qp2.scheduled_start_time) {
+                    np.innerHTML = 'Next \u2022 ' + qp2.program_name +
+                        ' <span class="np-time">at ' + qp2.scheduled_start_time + '</span>';
+                } else {
+                    np.textContent = '';
+                }
                 return;
             }
 

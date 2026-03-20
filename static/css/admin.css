@@ -1005,6 +1005,13 @@ small.help-text {
 }
 .warm-preview::after { content: '07 : 00'; }
 
+.sacred-preview {
+    background: #030d08;
+    color: #d9f99d;
+    text-shadow: 0 0 15px rgba(163,230,53,0.45);
+}
+.sacred-preview::after { content: '07 : 00'; }
+
 /* ── FONT SELECTOR ── */
 .font-grid {
     display: grid;

@@ -1665,7 +1665,7 @@ def set_kiosk_theme():
     theme = data.get('theme')
     font = data.get('font')
     if theme:
-        if theme not in ('flip', 'minimal', 'neon', 'warm'):
+        if theme not in ('flip', 'minimal', 'neon', 'warm', 'sacred'):
             return jsonify({'error': 'Invalid theme'}), 400
         kiosk_theme = theme
         print(f"[THEME] Kiosk theme changed to: {theme}")

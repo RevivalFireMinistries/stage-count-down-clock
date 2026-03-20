@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#0f0f0f">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&family=Oswald:wght@700&family=Bebas+Neue&family=Orbitron:wght@800&family=Roboto+Mono:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <link href="/static/css/admin.css?v=8" rel="stylesheet">
+    <link href="/static/css/admin.css?v=9" rel="stylesheet">
 </head>
 <body>
     <!-- Header -->
@@ -190,6 +190,10 @@
                         <button class="theme-option" data-theme="warm" onclick="setTheme('warm')">
                             <div class="theme-preview warm-preview"></div>
                             <span>Warm</span>
+                        </button>
+                        <button class="theme-option" data-theme="sacred" onclick="setTheme('sacred')">
+                            <div class="theme-preview sacred-preview"></div>
+                            <span>Sacred</span>
                         </button>
                     </div>
                 </div>
@@ -550,7 +554,7 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
-    <script src="/static/js/admin.js?v=8"></script>
+    <script src="/static/js/admin.js?v=9"></script>
     <script>
         function switchTab(tabId, button) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
