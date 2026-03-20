@@ -639,33 +639,65 @@ async function updateTimerStatus() {
         else { liveCard.style.display = 'none'; }
 
         // Queue
-        const qCard = document.getElementById('queuedProgramCard');
-        const qp = s.queued_program;
-        if (qp && qp.has_queued) {
+        const qCard = document.getElementById('queueCard');
+        const queueData = s.queue || [];
+        if (queueData.length > 0) {
             qCard.style.display = 'block';
-            document.getElementById('queuedProgramName').textContent = qp.program_name;
-            const parts = qp.scheduled_start_time.split(':');
-            if (parts.length === 2) {
+            const qList = document.getElementById('queueList');
+            qList.innerHTML = '';
+            queueData.forEach((item, index) => {
+                const parts = item.scheduled_start_time.split(':');
                 const now = new Date();
                 const target = new Date();
                 target.setHours(parseInt(parts[0]), parseInt(parts[1]), 0, 0);
                 const diff = Math.max(0, Math.floor((target - now) / 1000));
-                const h = Math.floor(diff / 3600);
-                const m = Math.floor((diff % 3600) / 60);
-                const sec = diff % 60;
                 const pad = n => String(n).padStart(2, '0');
-                document.getElementById('queuedProgramCountdown').textContent =
-                    `${pad(h)}:${pad(m)}:${pad(sec)} \u2022 starts at ${qp.scheduled_start_time}`;
-            }
+                const countdown = diff > 0
+                    ? `in ${pad(Math.floor(diff/3600))}:${pad(Math.floor((diff%3600)/60))}:${pad(diff%60)}`
+                    : 'NOW';
+
+                const el = document.createElement('div');
+                el.className = 'queue-item';
+                el.innerHTML = `
+                    <div class="queue-item-info">
+                        <span class="queue-item-order">${index + 1}</span>
+                        <div>
+                            <div class="queue-item-name">${item.program_name}</div>
+                            <div class="queue-item-time">${item.scheduled_start_time} &middot; ${countdown}</div>
+                        </div>
+                    </div>
+                    <button class="btn btn-danger btn-sm" onclick="removeFromQueue(${item.program_id})" style="padding:0.3rem 0.5rem;">
+                        <i class="fas fa-times"></i>
+                    </button>`;
+                qList.appendChild(el);
+            });
         } else {
             qCard.style.display = 'none';
         }
     } catch (e) { console.error('Error updating status:', e); }
 }
 
-async function clearQueue() {
-    try { await fetch('/api/clear_queue', { method: 'POST' }); }
-    catch (e) { console.error('Error clearing queue:', e); }
+async function removeFromQueue(programId) {
+    try {
+        await fetch(`/api/queue/${programId}`, { method: 'DELETE' });
+        showAlert('Removed from queue');
+    } catch (e) { showAlert('Error removing from queue', 'error'); }
+}
+
+async function skipNextInQueue() {
+    try {
+        const res = await fetch('/api/queue/skip', { method: 'POST' });
+        if (res.ok) showAlert('Skipped next program');
+        else showAlert('Queue is empty', 'error');
+    } catch (e) { showAlert('Error skipping', 'error'); }
+}
+
+async function clearEntireQueue() {
+    if (!confirm('Clear the entire program queue?')) return;
+    try {
+        await fetch('/api/queue', { method: 'DELETE' });
+        showAlert('Queue cleared');
+    } catch (e) { showAlert('Error clearing queue', 'error'); }
 }
 
 async function resetScreen() {

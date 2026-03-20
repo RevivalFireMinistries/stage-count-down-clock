@@ -75,9 +75,27 @@ def run_migrations(conn):
             
             migrations_run.append("sort_order")
         
+        # Migration 5: Add source and synced_date to programs table
+        programs_columns = get_table_columns(c, 'programs')
+
+        if 'source' not in programs_columns:
+            print("Running migration: Adding source to programs...")
+            c.execute("ALTER TABLE programs ADD COLUMN source TEXT DEFAULT NULL")
+            # Mark existing remote-synced programs
+            c.execute("UPDATE programs SET source = 'remote' WHERE description = 'Synced from RFM app'")
+            migrations_run.append("source")
+
+        if 'synced_date' not in programs_columns:
+            print("Running migration: Adding synced_date to programs...")
+            c.execute("ALTER TABLE programs ADD COLUMN synced_date TEXT DEFAULT NULL")
+            # Set today's date for existing remote programs
+            today = datetime.now().strftime('%Y-%m-%d')
+            c.execute("UPDATE programs SET synced_date = ? WHERE source = 'remote'", (today,))
+            migrations_run.append("synced_date")
+
         if migrations_run:
             print(f"Migrations completed: {', '.join(migrations_run)}")
-        
+
         conn.commit()
         
     except Exception as e:

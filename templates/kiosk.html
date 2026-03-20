@@ -607,13 +607,22 @@
             document.getElementById('miniTimer').classList.remove('show');
         }
 
+        function msgActive() {
+            return document.getElementById('msgScene').classList.contains('active');
+        }
+
         function updateDisplay() {
             // Don't override active message - checkMessage handles dismissal
-            if (document.getElementById('msgScene').classList.contains('active')) return;
+            if (msgActive()) return;
 
             fetch('/api/countdown_timer').then(r=>r.json()).then(cd => {
+                // Re-check: message may have appeared while fetch was in-flight
+                if (msgActive()) return;
                 if (cd.is_active) { renderCountdown(cd); return; }
-                fetch('/api/timer_status').then(r=>r.json()).then(renderTimer);
+                fetch('/api/timer_status').then(r=>r.json()).then(t => {
+                    if (msgActive()) return;
+                    renderTimer(t);
+                });
             });
         }
 

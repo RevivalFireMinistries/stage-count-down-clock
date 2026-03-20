@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#0f0f0f">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&family=Oswald:wght@700&family=Bebas+Neue&family=Orbitron:wght@800&family=Roboto+Mono:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <link href="/static/css/admin.css?v=6" rel="stylesheet">
+    <link href="/static/css/admin.css?v=8" rel="stylesheet">
 </head>
 <body>
     <!-- Header -->
@@ -45,18 +45,24 @@
         <!-- ═══ HOME TAB ═══ -->
         <div class="tab-content active" id="homeTab">
 
-            <!-- Queued Program -->
-            <div id="queuedProgramCard" style="display:none;">
-                <div class="queue-banner">
-                    <i class="fas fa-hourglass-half queue-icon"></i>
-                    <div class="queue-info">
-                        <div class="queue-label">Up Next</div>
-                        <div class="queue-name" id="queuedProgramName"></div>
-                        <div class="queue-countdown" id="queuedProgramCountdown"></div>
+            <!-- Program Queue -->
+            <div id="queueCard" style="display:none;">
+                <div class="card" style="margin-bottom:1rem; border-color:rgba(245,158,11,0.25); background:var(--surface);">
+                    <div class="card-header" onclick="toggleCard(this)" style="padding:0.75rem 1rem;">
+                        <h3><i class="fas fa-list-ol" style="color:var(--orange);"></i> Program Queue</h3>
+                        <i class="fas fa-chevron-down toggle"></i>
                     </div>
-                    <button class="queue-clear" onclick="clearQueue()" title="Clear queue">
-                        <i class="fas fa-times"></i>
-                    </button>
+                    <div class="card-body open">
+                        <div id="queueList"></div>
+                        <div class="action-row" style="margin-top:0.75rem;">
+                            <button class="btn btn-secondary btn-sm" onclick="skipNextInQueue()">
+                                <i class="fas fa-forward"></i> Skip Next
+                            </button>
+                            <button class="btn btn-danger btn-sm" onclick="clearEntireQueue()">
+                                <i class="fas fa-trash"></i> Clear All
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -544,7 +550,7 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
-    <script src="/static/js/admin.js?v=7"></script>
+    <script src="/static/js/admin.js?v=8"></script>
     <script>
         function switchTab(tabId, button) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));

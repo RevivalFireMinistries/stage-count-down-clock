@@ -162,76 +162,54 @@ body {
     letter-spacing: -0.02em;
 }
 
-/* ── QUEUED PROGRAM BANNER ── */
-#queuedProgramCard {
-    background: var(--orange-dim);
-    border: 1px solid rgba(245, 158, 11, 0.25);
-    border-radius: var(--radius);
-    padding: 0.875rem 1rem;
-    margin-bottom: 1rem;
+/* ── PROGRAM QUEUE ── */
+.queue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.75rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.35rem;
 }
 
-.queue-banner {
+.queue-item-info {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-}
-
-.queue-icon {
-    font-size: 1.25rem;
-    color: var(--orange);
-    flex-shrink: 0;
-}
-
-.queue-info {
     flex: 1;
     min-width: 0;
 }
 
-.queue-label {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
+.queue-item-order {
+    width: 1.6rem;
+    height: 1.6rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--orange-dim);
     color: var(--orange);
-    margin-bottom: 0.15rem;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
 }
 
-.queue-name {
-    font-size: 0.95rem;
+.queue-item-name {
     font-weight: 600;
+    font-size: 0.9rem;
     color: var(--text);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
 
-.queue-countdown {
-    font-size: 0.8rem;
-    font-weight: 600;
+.queue-item-time {
+    font-size: 0.78rem;
     color: var(--orange);
+    font-weight: 500;
     font-variant-numeric: tabular-nums;
-    margin-top: 0.1rem;
-}
-
-.queue-clear {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    border: none;
-    background: rgba(245, 158, 11, 0.2);
-    color: var(--orange);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    flex-shrink: 0;
-    transition: background 0.15s;
-}
-
-.queue-clear:active {
-    background: rgba(245, 158, 11, 0.35);
 }
 
 /* ── STATUS DISPLAY ── */

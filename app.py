@@ -24,13 +24,83 @@ current_timer = {
 }
 live_schedule_override = None  # Will store the live reordered schedule
 
-# Queued program - persists independently of current running state
-queued_program = {
-    'has_queued': False,
-    'program_id': None,
-    'program_name': '',
-    'scheduled_start_time': ''
-}
+# Program queue - ordered list of upcoming programs
+program_queue = []  # [{'program_id', 'program_name', 'scheduled_start_time'}, ...]
+queue_lock = threading.Lock()
+
+def queue_add(program_id, program_name, scheduled_start_time):
+    """Add a program to the queue if not already present, keep sorted by time."""
+    with queue_lock:
+        if any(item['program_id'] == program_id for item in program_queue):
+            return
+        program_queue.append({
+            'program_id': program_id,
+            'program_name': program_name,
+            'scheduled_start_time': scheduled_start_time
+        })
+        program_queue.sort(key=lambda x: x['scheduled_start_time'])
+
+def queue_remove(program_id):
+    """Remove a specific program from the queue."""
+    with queue_lock:
+        program_queue[:] = [item for item in program_queue if item['program_id'] != program_id]
+
+def queue_pop_next():
+    """Pop and return the first item in the queue, or None."""
+    with queue_lock:
+        return program_queue.pop(0) if program_queue else None
+
+def queue_peek_next():
+    """Return the first item without removing, or None."""
+    with queue_lock:
+        return program_queue[0].copy() if program_queue else None
+
+def queue_clear():
+    """Clear the entire queue."""
+    with queue_lock:
+        program_queue.clear()
+
+def queue_get_all():
+    """Return a copy of the full queue."""
+    with queue_lock:
+        return [item.copy() for item in program_queue]
+
+def update_waiting_from_queue():
+    """Update the waiting state based on the front of the queue."""
+    next_prog = queue_peek_next()
+    if next_prog:
+        current_timer['waiting_for_start'] = True
+        current_timer['scheduled_start_time'] = next_prog['scheduled_start_time']
+        current_timer['waiting_program_name'] = next_prog['program_name']
+    else:
+        current_timer['waiting_for_start'] = False
+        current_timer['scheduled_start_time'] = ''
+        current_timer['waiting_program_name'] = ''
+
+def populate_queue_from_db():
+    """Populate the program queue from today's auto-start programs."""
+    current_day = datetime.now().strftime('%A')
+    current_time = datetime.now().strftime('%H:%M')
+
+    conn = init_database()
+    c = conn.cursor()
+    c.execute('''
+        SELECT id, name, scheduled_start_time
+        FROM programs
+        WHERE day_of_week = ? AND auto_start = TRUE
+        ORDER BY scheduled_start_time
+    ''', (current_day,))
+
+    for row in c.fetchall():
+        queue_add(row[0], row[1], row[2])
+
+    conn.close()
+
+    items = queue_get_all()
+    if items:
+        print(f"[QUEUE] Populated with {len(items)} programs: {[i['program_name'] for i in items]}")
+    else:
+        print("[QUEUE] No programs to queue for today")
 
 # Kiosk theme and font (loaded from DB on startup)
 kiosk_theme = 'flip'
@@ -177,10 +247,51 @@ def update_timer_display():
 
 # Threads are started in main block after database init
 
+def process_queue():
+    """Check the front of the queue and start programs when their time arrives."""
+    next_item = queue_peek_next()
+    if not next_item:
+        return
+
+    now = datetime.now()
+    current_time = now.strftime('%H:%M')
+    program_id = next_item['program_id']
+    program_name = next_item['program_name']
+    scheduled_start = next_item['scheduled_start_time']
+
+    conn = init_database()
+    c = conn.cursor()
+    c.execute('SELECT is_running, manual_override FROM current_state WHERE id = 1')
+    state = c.fetchone()
+    conn.close()
+
+    if scheduled_start <= current_time:
+        # Time has arrived or passed
+        if scheduled_start == current_time:
+            # Exact time match - override even running programs
+            queue_pop_next()
+            try:
+                start_program_smart_internal(program_id)
+                print(f"[QUEUE] Started program: {program_name}")
+            except Exception as e:
+                print(f"[QUEUE] Error starting {program_name}: {e}")
+        elif not state or (not state[0] and not state[1]):
+            # Past time but nothing running - still start
+            queue_pop_next()
+            try:
+                start_program_smart_internal(program_id)
+                print(f"[QUEUE] Late-started program: {program_name}")
+            except Exception as e:
+                print(f"[QUEUE] Error late-starting {program_name}: {e}")
+        # else: something is running manually, leave in queue until it stops
+    else:
+        # Future program - show waiting state if nothing running
+        if not state or not state[0]:
+            update_waiting_from_queue()
+
 # Auto-start checker thread
 def auto_start_checker():
-    """Background thread that continuously checks for programs to auto-start"""
-    global queued_program
+    """Background thread that processes the queue every 30 seconds."""
     last_check_minute = None
 
     while True:
@@ -188,191 +299,168 @@ def auto_start_checker():
             now = datetime.now()
             current_minute = (now.hour, now.minute)
 
-            # Only check once per minute to avoid duplicate starts
             if current_minute != last_check_minute:
                 last_check_minute = current_minute
-                current_time = now.strftime('%H:%M')
-
-                # Priority 1: Start queued program when its time arrives
-                # This overrides even manually running programs
-                if queued_program['has_queued'] and queued_program['scheduled_start_time'] == current_time:
-                    program_id = queued_program['program_id']
-                    program_name = queued_program['program_name']
-                    print(f"[AUTO-START] Queued program time arrived: {program_name}")
-
-                    try:
-                        start_program_smart_internal(program_id)
-                        print(f"[AUTO-START] Successfully started queued program: {program_name}")
-                    except Exception as e:
-                        print(f"[AUTO-START] Error starting queued program: {e}")
-
-                else:
-                    # Priority 2: Normal auto-start check (only if nothing running and no manual override)
-                    conn = init_database()
-                    c = conn.cursor()
-
-                    current_day = now.strftime('%A')
-
-                    c.execute('SELECT is_running, manual_override FROM current_state WHERE id = 1')
-                    result = c.fetchone()
-
-                    if not result or (not result[0] and not result[1]):
-                        c.execute('''
-                            SELECT id, name, scheduled_start_time
-                            FROM programs
-                            WHERE day_of_week = ? AND auto_start = TRUE AND scheduled_start_time = ?
-                            LIMIT 1
-                        ''', (current_day, current_time))
-
-                        program = c.fetchone()
-
-                        if program:
-                            program_id, program_name, scheduled_start_time = program
-                            print(f"[AUTO-START] Starting program: {program_name} at {scheduled_start_time}")
-
-                            try:
-                                start_program_smart_internal(program_id)
-                                print(f"[AUTO-START] Successfully started program: {program_name}")
-                            except Exception as e:
-                                print(f"[AUTO-START] Error starting program {program_name}: {e}")
-
-                    conn.close()
+                process_queue()
 
         except Exception as e:
-            print(f"[AUTO-START] Error in auto-start checker: {e}")
+            print(f"[AUTO-START] Error: {e}")
 
-        # Check every 30 seconds (will only trigger once per minute due to last_check_minute)
         time.sleep(30)
-
-# Auto-start thread is started in main block after database init
 
 # Remote program sync
 REMOTE_PROGRAMS_URL = 'https://app.rfm.org.za/api/programs/today'
 remote_program_hashes = {}  # {remote_id: hash} for change detection
 
-def sync_programs_from_remote():
-    """Background thread that polls the remote API for today's programs every 10 minutes"""
+def cleanup_old_remote_programs():
+    """Delete remote-synced programs whose synced_date is before today."""
+    today = datetime.now().strftime('%Y-%m-%d')
+    conn = init_database()
+    c = conn.cursor()
+    try:
+        # Find old remote programs (not currently running)
+        c.execute("SELECT id, name, synced_date FROM programs WHERE source = 'remote' AND synced_date < ?", (today,))
+        old_programs = c.fetchall()
+
+        if not old_programs:
+            return
+
+        # Don't delete a program that's currently running
+        c.execute('SELECT current_program_id FROM current_state WHERE id = 1')
+        state = c.fetchone()
+        running_id = state[0] if state else None
+
+        for prog_id, name, synced_date in old_programs:
+            if prog_id == running_id:
+                print(f"[CLEANUP] Skipping {name} (currently running)")
+                continue
+            # Delete schedules first (CASCADE should handle this but be explicit)
+            c.execute('DELETE FROM program_schedules WHERE program_id = ?', (prog_id,))
+            c.execute('DELETE FROM programs WHERE id = ?', (prog_id,))
+            print(f"[CLEANUP] Deleted old remote program: {name} (synced {synced_date})")
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"[CLEANUP] Error cleaning up old programs: {e}")
+    finally:
+        conn.close()
+
+
+def sync_programs_once():
+    """Run a single remote sync pass. Returns True if successful."""
     global remote_program_hashes
+    try:
+        req = urllib.request.Request(REMOTE_PROGRAMS_URL, headers={'Accept': 'application/json'})
+        with urllib.request.urlopen(req, timeout=15) as response:
+            data = json.loads(response.read().decode('utf-8'))
 
-    while True:
-        try:
-            req = urllib.request.Request(REMOTE_PROGRAMS_URL, headers={'Accept': 'application/json'})
-            with urllib.request.urlopen(req, timeout=15) as response:
-                data = json.loads(response.read().decode('utf-8'))
+        programs_data = data.get('programs', [])
+        if not programs_data:
+            print("[REMOTE SYNC] No programs for today")
+            return True
 
-            programs = data.get('programs', [])
-            if not programs:
-                print("[REMOTE SYNC] No programs for today")
-                time.sleep(600)
+        for prog in programs_data:
+            remote_id = prog.get('id')
+            prog_hash = prog.get('hash', '')
+            title = prog.get('title', 'Untitled Program')
+            items = prog.get('program_items', [])
+
+            if not remote_id or not items:
                 continue
 
-            for prog in programs:
-                remote_id = prog.get('id')
-                prog_hash = prog.get('hash', '')
-                title = prog.get('title', 'Untitled Program')
-                items = prog.get('program_items', [])
+            if remote_program_hashes.get(remote_id) == prog_hash:
+                continue
 
-                if not remote_id or not items:
+            print(f"[REMOTE SYNC] New/updated program: {title} (hash: {prog_hash})")
+
+            schedule_items = []
+            for i, item in enumerate(items):
+                item_time = item.get('time', '')
+                item_name = item.get('item', '')
+                if not item_time or not item_name:
                     continue
 
-                # Check if hash changed
-                if remote_program_hashes.get(remote_id) == prog_hash:
-                    continue
-
-                print(f"[REMOTE SYNC] New/updated program: {title} (hash: {prog_hash})")
-
-                # Calculate durations from time gaps between items
-                schedule_items = []
-                for i, item in enumerate(items):
-                    item_time = item.get('time', '')
-                    item_name = item.get('item', '')
-                    if not item_time or not item_name:
-                        continue
-
-                    # Duration = difference to next item's time, default 5 min for last item
-                    if i < len(items) - 1:
-                        next_time = items[i + 1].get('time', '')
-                        try:
-                            t1 = datetime.strptime(item_time, '%H:%M')
-                            t2 = datetime.strptime(next_time, '%H:%M')
-                            duration = int((t2 - t1).total_seconds() / 60)
-                            if duration <= 0:
-                                duration = 5
-                        except ValueError:
-                            duration = 5
-                    else:
-                        duration = 5
-
-                    schedule_items.append((item_name, duration))
-
-                if not schedule_items:
-                    continue
-
-                # First item's time is the program start time
-                start_time = items[0].get('time', '')
-                today_day = datetime.now().strftime('%A')
-
-                conn = init_database()
-                c = conn.cursor()
-                try:
-                    # Check if program already exists (by title)
-                    c.execute('SELECT id FROM programs WHERE name = ?', (title,))
-                    existing = c.fetchone()
-
-                    if existing:
-                        program_id = existing[0]
-                        # Update program details
-                        c.execute('''UPDATE programs
-                                     SET scheduled_start_time = ?, day_of_week = ?, auto_start = TRUE
-                                     WHERE id = ?''', (start_time, today_day, program_id))
-                        # Clear old schedule
-                        c.execute('DELETE FROM program_schedules WHERE program_id = ?', (program_id,))
-                    else:
-                        # Create new program
-                        c.execute('''INSERT INTO programs (name, description, scheduled_start_time, day_of_week, auto_start)
-                                     VALUES (?, ?, ?, ?, TRUE)''',
-                                  (title, f'Synced from RFM app', start_time, today_day))
-                        program_id = c.lastrowid
-
-                    # Create activities if they don't exist, then add to schedule
-                    for sort_order, (activity_name, duration) in enumerate(schedule_items):
-                        # Get or create activity
-                        c.execute('SELECT id FROM activities WHERE name = ?', (activity_name,))
-                        activity_row = c.fetchone()
-                        if activity_row:
-                            activity_id = activity_row[0]
-                        else:
-                            c.execute('INSERT INTO activities (name, default_duration) VALUES (?, ?)',
-                                      (activity_name, duration))
-                            activity_id = c.lastrowid
-
-                        c.execute('''INSERT INTO program_schedules (program_id, activity_id, duration_minutes, sort_order)
-                                     VALUES (?, ?, ?, ?)''',
-                                  (program_id, activity_id, duration, sort_order))
-
-                    conn.commit()
-                    remote_program_hashes[remote_id] = prog_hash
-                    print(f"[REMOTE SYNC] Synced program: {title} with {len(schedule_items)} items")
-
-                    # Trigger waiting state if program hasn't started yet
+                if i < len(items) - 1:
+                    next_time = items[i + 1].get('time', '')
                     try:
-                        c.execute('SELECT is_running FROM current_state WHERE id = 1')
-                        state = c.fetchone()
-                        if not state or not state[0]:
-                            start_program_smart_internal(program_id)
-                    except Exception as e:
-                        print(f"[REMOTE SYNC] Error setting waiting state: {e}")
+                        t1 = datetime.strptime(item_time, '%H:%M')
+                        t2 = datetime.strptime(next_time, '%H:%M')
+                        duration = int((t2 - t1).total_seconds() / 60)
+                        if duration <= 0:
+                            duration = 5
+                    except ValueError:
+                        duration = 5
+                else:
+                    duration = 5
 
-                except Exception as e:
-                    conn.rollback()
-                    print(f"[REMOTE SYNC] DB error syncing {title}: {e}")
-                finally:
-                    conn.close()
+                schedule_items.append((item_name, duration))
 
-        except Exception as e:
-            print(f"[REMOTE SYNC] Error fetching remote programs: {e}")
+            if not schedule_items:
+                continue
 
-        time.sleep(600)  # Poll every 10 minutes
+            start_time = items[0].get('time', '')
+            today_day = datetime.now().strftime('%A')
+
+            conn = init_database()
+            c = conn.cursor()
+            try:
+                c.execute('SELECT id FROM programs WHERE name = ?', (title,))
+                existing = c.fetchone()
+
+                today_date = datetime.now().strftime('%Y-%m-%d')
+
+                if existing:
+                    program_id = existing[0]
+                    c.execute('''UPDATE programs
+                                 SET scheduled_start_time = ?, day_of_week = ?, auto_start = TRUE,
+                                     source = 'remote', synced_date = ?
+                                 WHERE id = ?''', (start_time, today_day, today_date, program_id))
+                    c.execute('DELETE FROM program_schedules WHERE program_id = ?', (program_id,))
+                else:
+                    c.execute('''INSERT INTO programs (name, description, scheduled_start_time, day_of_week, auto_start, source, synced_date)
+                                 VALUES (?, ?, ?, ?, TRUE, 'remote', ?)''',
+                              (title, 'Synced from RFM app', start_time, today_day, today_date))
+                    program_id = c.lastrowid
+
+                for sort_order, (activity_name, duration) in enumerate(schedule_items):
+                    c.execute('SELECT id FROM activities WHERE name = ?', (activity_name,))
+                    activity_row = c.fetchone()
+                    if activity_row:
+                        activity_id = activity_row[0]
+                    else:
+                        c.execute('INSERT INTO activities (name, default_duration) VALUES (?, ?)',
+                                  (activity_name, duration))
+                        activity_id = c.lastrowid
+
+                    c.execute('''INSERT INTO program_schedules (program_id, activity_id, duration_minutes, sort_order)
+                                 VALUES (?, ?, ?, ?)''',
+                              (program_id, activity_id, duration, sort_order))
+
+                conn.commit()
+                remote_program_hashes[remote_id] = prog_hash
+                print(f"[REMOTE SYNC] Synced program: {title} with {len(schedule_items)} items")
+
+            except Exception as e:
+                conn.rollback()
+                print(f"[REMOTE SYNC] DB error syncing {title}: {e}")
+            finally:
+                conn.close()
+
+        return True
+
+    except Exception as e:
+        print(f"[REMOTE SYNC] Error fetching remote programs: {e}")
+        return False
+
+def sync_programs_from_remote():
+    """Background thread that polls the remote API every 10 minutes."""
+    while True:
+        cleanup_old_remote_programs()
+        sync_programs_once()
+        # Refresh queue after each sync to pick up new programs
+        populate_queue_from_db()
+        time.sleep(600)
 
 # Helper functions for smart start
 def calculate_current_activity(program_id):
@@ -465,12 +553,29 @@ def move_to_next_item():
         else:
             # End of program
             c.execute('UPDATE current_state SET is_running = FALSE, manual_override = FALSE WHERE id = 1')
+            conn.commit()
+            conn.close()
 
-            # Restore waiting view if there's a queued program
-            if queued_program['has_queued']:
-                current_timer['waiting_for_start'] = True
-                current_timer['scheduled_start_time'] = queued_program['scheduled_start_time']
-                current_timer['waiting_program_name'] = queued_program['program_name']
+            # Auto-advance: try to start next queued program
+            next_prog = queue_peek_next()
+            if next_prog:
+                now = datetime.now()
+                try:
+                    sh, sm = map(int, next_prog['scheduled_start_time'].split(':'))
+                    scheduled = now.replace(hour=sh, minute=sm, second=0)
+                except ValueError:
+                    scheduled = None
+
+                if scheduled and now >= scheduled:
+                    queue_pop_next()
+                    try:
+                        start_program_smart_internal(next_prog['program_id'])
+                        print(f"[QUEUE] Auto-advanced to: {next_prog['program_name']}")
+                    except Exception as e:
+                        print(f"[QUEUE] Error auto-advancing: {e}")
+                else:
+                    update_waiting_from_queue()
+            return
 
         conn.commit()
 
@@ -563,55 +668,11 @@ def get_live_schedule():
         'is_running': is_running
     })
 
-# Auto-start function - called on app startup
-def check_and_auto_start():
-    """Check if there's a program that should auto-start for today"""
-    conn = init_database()
-    c = conn.cursor()
-    
-    # Get current day of week (e.g., "Monday", "Sunday")
-    current_day = datetime.now().strftime('%A')
-    
-    # Check if there's already a program running OR if manual override is active
-    c.execute('SELECT is_running, manual_override FROM current_state WHERE id = 1')
-    result = c.fetchone()
-    
-    if result and (result[0] or result[1]):
-        # Already running or manual override active, don't auto-start
-        conn.close()
-        return
-    
-    # Find programs set to auto-start for today
-    c.execute('''
-        SELECT id, name, scheduled_start_time 
-        FROM programs 
-        WHERE day_of_week = ? AND auto_start = TRUE
-        ORDER BY scheduled_start_time
-        LIMIT 1
-    ''', (current_day,))
-    
-    program = c.fetchone()
-    conn.close()
-    
-    if program:
-        program_id, program_name, scheduled_start_time = program
-        print(f"Auto-starting program: {program_name} (ID: {program_id}) scheduled for {scheduled_start_time}")
-        
-        # Use smart start to begin the program
-        try:
-            # This will handle the waiting state if needed
-            start_program_smart_internal(program_id)
-        except Exception as e:
-            print(f"Error auto-starting program: {e}")
-
 def start_program_smart_internal(program_id):
-    """Internal function to start a program smartly (used by auto-start)"""
-    global queued_program
-
+    """Internal function to start a program smartly (used by auto-start and queue)."""
     conn = init_database()
     c = conn.cursor()
 
-    # Get program details including scheduled start time
     c.execute('SELECT name, scheduled_start_time FROM programs WHERE id = ?', (program_id,))
     program = c.fetchone()
 
@@ -621,7 +682,6 @@ def start_program_smart_internal(program_id):
 
     program_name, scheduled_start_str = program
 
-    # Parse scheduled start time
     try:
         scheduled_hour, scheduled_minute = map(int, scheduled_start_str.split(':'))
         now = datetime.now()
@@ -630,37 +690,23 @@ def start_program_smart_internal(program_id):
         conn.close()
         return
 
-    # Check if current time is before scheduled start
     if now < scheduled_start:
-        # Always queue the program (persists through manual starts)
-        queued_program.update({
-            'has_queued': True,
-            'program_id': program_id,
-            'program_name': program_name,
-            'scheduled_start_time': scheduled_start_str
-        })
-        print(f"Program {program_name} queued for {scheduled_start_str}")
+        # Future program - add to queue, show waiting if nothing running
+        queue_add(program_id, program_name, scheduled_start_str)
+        print(f"[QUEUE] Added {program_name} for {scheduled_start_str}")
 
-        # Only show waiting view if nothing is currently running
         c.execute('SELECT is_running FROM current_state WHERE id = 1')
         state = c.fetchone()
         if not state or not state[0]:
-            current_timer['waiting_for_start'] = True
-            current_timer['scheduled_start_time'] = scheduled_start_str
-            current_timer['waiting_program_name'] = program_name
+            update_waiting_from_queue()
             current_timer['is_running'] = False
             current_timer['is_paused'] = False
 
         conn.close()
         return
 
-    # Clear queue and waiting state when actually starting
-    queued_program.update({
-        'has_queued': False,
-        'program_id': None,
-        'program_name': '',
-        'scheduled_start_time': ''
-    })
+    # Starting now - remove from queue and clear waiting
+    queue_remove(program_id)
     current_timer['waiting_for_start'] = False
     current_timer['scheduled_start_time'] = ''
     current_timer['waiting_program_name'] = ''
@@ -784,12 +830,13 @@ def start_program_smart():
     start_program_smart_internal(program_id)
 
     # Return appropriate status based on what happened
-    if queued_program['has_queued'] and queued_program['program_id'] == program_id:
+    next_in_queue = queue_peek_next()
+    if next_in_queue and next_in_queue['program_id'] == program_id:
         return jsonify({
             'status': 'waiting',
-            'message': f'Service starts at {queued_program["scheduled_start_time"]}',
-            'scheduled_start': queued_program['scheduled_start_time'],
-            'program_name': queued_program['program_name']
+            'message': f'Service starts at {next_in_queue["scheduled_start_time"]}',
+            'scheduled_start': next_in_queue['scheduled_start_time'],
+            'program_name': next_in_queue['program_name']
         })
 
     return jsonify({'status': 'started', 'message': 'Program started successfully'})
@@ -855,15 +902,8 @@ def stop_timer():
         'current_activity': '',
     })
 
-    # If there's a queued program, restore the waiting view
-    if queued_program['has_queued']:
-        current_timer['waiting_for_start'] = True
-        current_timer['scheduled_start_time'] = queued_program['scheduled_start_time']
-        current_timer['waiting_program_name'] = queued_program['program_name']
-    else:
-        current_timer['waiting_for_start'] = False
-        current_timer['scheduled_start_time'] = ''
-        current_timer['waiting_program_name'] = ''
+    # Restore waiting view from queue if there's a next program
+    update_waiting_from_queue()
 
     return jsonify({'status': 'success'})
 
@@ -883,20 +923,43 @@ def clear_manual_override():
     return jsonify({'status': 'success', 'message': 'Manual override cleared. Auto-start will resume.'})
 
 @app.route('/api/clear_queue', methods=['POST'])
-def clear_queue():
-    """Clear the queued program"""
-    global queued_program
-    queued_program.update({
-        'has_queued': False,
-        'program_id': None,
-        'program_name': '',
-        'scheduled_start_time': ''
-    })
-    # Also clear waiting view if it was showing the queued program
+def clear_queue_legacy():
+    """Clear the entire queue (legacy endpoint)."""
+    queue_clear()
     current_timer['waiting_for_start'] = False
     current_timer['scheduled_start_time'] = ''
     current_timer['waiting_program_name'] = ''
     return jsonify({'status': 'success'})
+
+@app.route('/api/queue', methods=['GET'])
+def get_queue():
+    """Return the full program queue."""
+    return jsonify({'queue': queue_get_all()})
+
+@app.route('/api/queue', methods=['DELETE'])
+def clear_queue_endpoint():
+    """Clear the entire queue."""
+    queue_clear()
+    current_timer['waiting_for_start'] = False
+    current_timer['scheduled_start_time'] = ''
+    current_timer['waiting_program_name'] = ''
+    return jsonify({'status': 'success'})
+
+@app.route('/api/queue/<int:program_id>', methods=['DELETE'])
+def remove_from_queue(program_id):
+    """Remove a specific program from the queue."""
+    queue_remove(program_id)
+    update_waiting_from_queue()
+    return jsonify({'status': 'success'})
+
+@app.route('/api/queue/skip', methods=['POST'])
+def skip_next_in_queue():
+    """Skip (remove) the next program in the queue."""
+    skipped = queue_pop_next()
+    if not skipped:
+        return jsonify({'error': 'Queue is empty'}), 400
+    update_waiting_from_queue()
+    return jsonify({'status': 'success', 'skipped': skipped})
 
 
 # API Routes for Program Management
@@ -1547,29 +1610,25 @@ def stop_countdown_timer():
 @app.route('/api/reset_screen', methods=['POST'])
 def reset_screen():
     """Master reset - stop everything and return kiosk to idle clock"""
-    global live_schedule_override, queued_program
+    global live_schedule_override
 
     conn = init_database()
     c = conn.cursor()
 
-    # Stop any running program
     c.execute('''UPDATE current_state
                  SET is_running = FALSE, is_paused = FALSE,
                      current_program_id = NULL, current_schedule_id = NULL,
                      manual_override = FALSE
                  WHERE id = 1''')
 
-    # Deactivate stage messages
     c.execute('UPDATE stage_messages SET is_active = FALSE WHERE is_active = TRUE')
-
-    # Deactivate countdown timers
     c.execute('UPDATE countdown_timers SET is_active = FALSE WHERE is_active = TRUE')
 
     conn.commit()
     conn.close()
 
-    # Clear all in-memory state
     live_schedule_override = None
+    queue_clear()
 
     current_timer.update({
         'current_activity': '',
@@ -1581,13 +1640,6 @@ def reset_screen():
         'waiting_for_start': False,
         'scheduled_start_time': '',
         'waiting_program_name': ''
-    })
-
-    queued_program.update({
-        'has_queued': False,
-        'program_id': None,
-        'program_name': '',
-        'scheduled_start_time': ''
     })
 
     countdown_timer.update({
@@ -1627,9 +1679,24 @@ def set_kiosk_theme():
 
 @app.route('/api/timer_status')
 def timer_status():
-    # Include waiting state and queue information in the response
     response_data = current_timer.copy()
-    response_data['queued_program'] = queued_program.copy()
+    all_queue = queue_get_all()
+    # Backward compatibility for kiosk: provide queued_program as first item
+    if all_queue:
+        response_data['queued_program'] = {
+            'has_queued': True,
+            'program_id': all_queue[0]['program_id'],
+            'program_name': all_queue[0]['program_name'],
+            'scheduled_start_time': all_queue[0]['scheduled_start_time']
+        }
+    else:
+        response_data['queued_program'] = {
+            'has_queued': False,
+            'program_id': None,
+            'program_name': '',
+            'scheduled_start_time': ''
+        }
+    response_data['queue'] = all_queue
     response_data['kiosk_theme'] = kiosk_theme
     response_data['kiosk_font'] = kiosk_font
     return jsonify(response_data)
@@ -1639,19 +1706,28 @@ if __name__ == '__main__':
     init_db()
     load_kiosk_settings()
 
-    # Start background threads AFTER database is initialized
+    # 1. Clean up old remote programs, then sync today's
+    print("[BOOT] Cleaning up old remote programs...")
+    cleanup_old_remote_programs()
+    print("[BOOT] Running initial remote sync...")
+    sync_programs_once()
+
+    # 2. Populate queue from today's auto-start programs
+    populate_queue_from_db()
+
+    # 3. Process queue (start or set waiting state)
+    process_queue()
+
+    # 4. Start background threads
     timer_thread = threading.Thread(target=update_timer_display, daemon=True)
     timer_thread.start()
 
     auto_start_thread = threading.Thread(target=auto_start_checker, daemon=True)
     auto_start_thread.start()
-    print("Auto-start checker thread started")
+    print("[BOOT] Auto-start checker thread started")
 
     remote_sync_thread = threading.Thread(target=sync_programs_from_remote, daemon=True)
     remote_sync_thread.start()
-    print("Remote program sync thread started")
-
-    # Check and auto-start programs after database initialization
-    check_and_auto_start()
+    print("[BOOT] Remote program sync thread started")
 
     app.run(host='0.0.0.0', port=80, debug=False, threaded=True)
