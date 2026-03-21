@@ -418,16 +418,28 @@ def process_queue():
             update_waiting_from_queue()
 
 
+def _is_busy():
+    """Return True if a program or countdown is actively running.
+    Used by background threads to skip unnecessary work."""
+    if countdown_timer.get('is_active') and not countdown_timer.get('is_expired'):
+        return True
+    if current_timer.get('is_running'):
+        return True
+    return False
+
+
 def auto_start_checker():
-    """Background thread that processes the queue every 30 seconds."""
+    """Background thread that processes the queue every 30 seconds.
+    Skips queue processing while a program/countdown is actively running."""
     last_check_minute = None
     while True:
         try:
-            now = datetime.now()
-            current_minute = (now.hour, now.minute)
-            if current_minute != last_check_minute:
-                last_check_minute = current_minute
-                process_queue()
+            if not _is_busy():
+                now = datetime.now()
+                current_minute = (now.hour, now.minute)
+                if current_minute != last_check_minute:
+                    last_check_minute = current_minute
+                    process_queue()
         except Exception as e:
             print(f"[AUTO-START] Error: {e}")
         time.sleep(30)
@@ -592,9 +604,15 @@ def sync_programs_once():
 
 
 def sync_programs_from_remote():
-    """Background thread that polls the remote API every 10 minutes."""
+    """Background thread that polls the remote API every 10 minutes.
+    Defers sync while a program/countdown is actively running to save
+    CPU, network, and DB I/O on the Pi."""
     while True:
         try:
+            if _is_busy():
+                # Still sleeping but longer — no point syncing mid-service
+                time.sleep(120)
+                continue
             cleanup_old_remote_programs()
             cleanup_old_records()
             sync_programs_once()
