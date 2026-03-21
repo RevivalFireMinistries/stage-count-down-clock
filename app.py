@@ -481,21 +481,27 @@ def cleanup_old_remote_programs():
 
 
 def cleanup_old_records():
-    """Purge old inactive stage_messages and countdown_timers to prevent table bloat."""
+    """Purge old inactive stage_messages and countdown_timers to prevent table bloat.
+    Also runs VACUUM periodically to reclaim disk space from deleted rows."""
     try:
         with get_db() as conn:
             c = conn.cursor()
-            # Keep only the last 50 inactive messages
+            # Keep only the last 20 inactive messages
             c.execute('''DELETE FROM stage_messages WHERE is_active = FALSE
-                         AND id NOT IN (SELECT id FROM stage_messages ORDER BY created_at DESC LIMIT 50)''')
+                         AND id NOT IN (SELECT id FROM stage_messages ORDER BY created_at DESC LIMIT 20)''')
             deleted_msgs = c.rowcount
-            # Keep only the last 50 inactive timers
+            # Keep only the last 20 inactive timers
             c.execute('''DELETE FROM countdown_timers WHERE is_active = FALSE
-                         AND id NOT IN (SELECT id FROM countdown_timers ORDER BY created_at DESC LIMIT 50)''')
+                         AND id NOT IN (SELECT id FROM countdown_timers ORDER BY created_at DESC LIMIT 20)''')
             deleted_timers = c.rowcount
             conn.commit()
+
             if deleted_msgs or deleted_timers:
                 print(f"[CLEANUP] Purged {deleted_msgs} old messages, {deleted_timers} old timers")
+                # VACUUM reclaims disk space after bulk deletes
+                # Must run outside a transaction (autocommit)
+                conn.execute('VACUUM')
+                print("[CLEANUP] Database vacuumed")
     except Exception as e:
         print(f"[CLEANUP] Error purging old records: {e}")
 
@@ -1718,10 +1724,27 @@ if __name__ == '__main__':
     load_kiosk_settings()
     _load_countdown_from_db()
 
-    # 1. Clean up old remote programs, then sync today's
-    print("[BOOT] Cleaning up old remote programs...")
+    # 1. Clean up old data and compact DB
+    print("[BOOT] Cleaning up old data...")
     cleanup_old_remote_programs()
     cleanup_old_records()
+    # One-time boot VACUUM to reclaim space from any past bloat
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute('PRAGMA page_count')
+            pages = c.fetchone()[0]
+            c.execute('PRAGMA page_size')
+            page_size = c.fetchone()[0]
+            db_size_kb = (pages * page_size) / 1024
+            c.execute('PRAGMA freelist_count')
+            free_pages = c.fetchone()[0]
+            print(f"[BOOT] DB size: {db_size_kb:.0f}KB, reclaimable pages: {free_pages}")
+            if free_pages > 0:
+                conn.execute('VACUUM')
+                print(f"[BOOT] Database vacuumed, reclaimed {free_pages * page_size / 1024:.0f}KB")
+    except Exception as e:
+        print(f"[BOOT] VACUUM error (non-fatal): {e}")
     print("[BOOT] Running initial remote sync...")
     sync_programs_once()
 
