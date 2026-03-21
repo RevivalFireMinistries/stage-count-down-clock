@@ -770,15 +770,17 @@
 
             showScene('timerScene');
 
-            // End of program
+            // End of program — return to default clock screen
             if (secs <= 0 && data.current_activity && data.current_activity !== 'READY') {
                 if (!showingEnd) {
                     showingEnd = true;
-                    document.getElementById('endText').textContent = 'THE END';
-                    showScene('endScene');
                     totalSec = 0;
                     if (endTimer) clearTimeout(endTimer);
-                    endTimer = setTimeout(() => { showingEnd = false; }, 300000);
+                    // Brief 3-second pause then back to clock
+                    endTimer = setTimeout(() => {
+                        showingEnd = false;
+                        showScene('clockScene');
+                    }, 3000);
                 }
                 return;
             } else {
