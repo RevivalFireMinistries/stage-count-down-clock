@@ -430,16 +430,16 @@ def _is_busy():
 
 def auto_start_checker():
     """Background thread that processes the queue every 30 seconds.
-    Skips queue processing while a program/countdown is actively running."""
+    Always runs — process_queue() already handles the 'something is running' case
+    by only overriding at exact scheduled time match."""
     last_check_minute = None
     while True:
         try:
-            if not _is_busy():
-                now = datetime.now()
-                current_minute = (now.hour, now.minute)
-                if current_minute != last_check_minute:
-                    last_check_minute = current_minute
-                    process_queue()
+            now = datetime.now()
+            current_minute = (now.hour, now.minute)
+            if current_minute != last_check_minute:
+                last_check_minute = current_minute
+                process_queue()
         except Exception as e:
             print(f"[AUTO-START] Error: {e}")
         time.sleep(30)
@@ -1141,6 +1141,9 @@ def create_program():
                       (name, description, scheduled_start_time, day_of_week, auto_start))
             program_id = c.lastrowid
             conn.commit()
+        # Refresh queue so new auto-start programs are picked up immediately
+        populate_queue_from_db()
+        process_queue()
         return jsonify({'status': 'success', 'program_id': program_id})
     except sqlite3.IntegrityError:
         return jsonify({'error': 'Program name already exists'}), 400
@@ -1163,6 +1166,8 @@ def update_program(program_id):
             return jsonify({'error': 'Program not found'}), 404
         conn.commit()
 
+    # Refresh queue in case schedule/time/auto_start changed
+    populate_queue_from_db()
     return jsonify({'status': 'success'})
 
 
@@ -1175,6 +1180,9 @@ def delete_program(program_id):
             return jsonify({'error': 'Program not found'}), 404
         conn.commit()
 
+    # Remove from queue and refresh
+    queue_remove(program_id)
+    populate_queue_from_db()
     return jsonify({'status': 'success'})
 
 
