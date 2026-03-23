@@ -863,3 +863,103 @@ function showCountdownStatus(msg, type) {
     el.style.border = '1px solid ' + (type === 'success' ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)');
     setTimeout(() => el.style.display = 'none', 4000);
 }
+
+// ═══════════════════════════════════════════════════════════════════
+// Presenter Integration
+// ═══════════════════════════════════════════════════════════════════
+
+let presenterSettings = {
+    enabled: false,
+    host: '',
+    port: 4777,
+    filters: ['scripture', 'song'],
+};
+
+function loadPresenterSettings() {
+    fetch('/api/presenter').then(r => r.json()).then(data => {
+        document.getElementById('presenterHost').value = data.host || '';
+        document.getElementById('presenterPort').value = data.port || 4777;
+        try {
+            const saved = JSON.parse(localStorage.getItem('presenterSettings') || '{}');
+            presenterSettings = { ...presenterSettings, ...saved, host: data.host || saved.host, port: data.port || saved.port };
+        } catch {}
+        document.getElementById('presenterEnabled').checked = presenterSettings.enabled;
+        document.getElementById('filterScripture').checked = presenterSettings.filters.includes('scripture');
+        document.getElementById('filterSong').checked = presenterSettings.filters.includes('song');
+        document.getElementById('filterCustom').checked = presenterSettings.filters.includes('custom');
+        updatePresenterUI();
+    }).catch(() => {});
+}
+
+function togglePresenter() {
+    presenterSettings.enabled = document.getElementById('presenterEnabled').checked;
+    savePresenterSettingsLocal();
+    updatePresenterUI();
+    pushPresenterConfig();
+}
+
+function savePresenterSettings() {
+    presenterSettings.host = document.getElementById('presenterHost').value.trim();
+    presenterSettings.port = parseInt(document.getElementById('presenterPort').value) || 4777;
+    presenterSettings.filters = [];
+    if (document.getElementById('filterScripture').checked) presenterSettings.filters.push('scripture');
+    if (document.getElementById('filterSong').checked) presenterSettings.filters.push('song');
+    if (document.getElementById('filterCustom').checked) presenterSettings.filters.push('custom');
+    savePresenterSettingsLocal();
+    pushPresenterConfig();
+    showAlert('Presenter settings saved', 'success');
+}
+
+function pushPresenterConfig() {
+    fetch('/api/presenter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(presenterSettings),
+    }).catch(() => {});
+}
+
+function savePresenterSettingsLocal() {
+    localStorage.setItem('presenterSettings', JSON.stringify(presenterSettings));
+}
+
+function updatePresenterUI() {
+    const statusText = document.getElementById('presenterStatusText');
+    const connInfo = document.getElementById('presenterConnectionInfo');
+
+    if (presenterSettings.enabled) {
+        statusText.textContent = 'Enabled';
+        statusText.classList.add('active');
+        connInfo.style.display = 'block';
+        pollPresenterConnection();
+    } else {
+        statusText.textContent = 'Disabled';
+        statusText.classList.remove('active');
+        connInfo.style.display = 'none';
+    }
+}
+
+let presenterPollTimer = null;
+
+function pollPresenterConnection() {
+    if (presenterPollTimer) clearInterval(presenterPollTimer);
+    if (!presenterSettings.enabled) return;
+
+    function check() {
+        fetch('/api/presenter_status').then(r => r.json()).then(data => {
+            const dot = document.getElementById('presenterDot');
+            const label = document.getElementById('presenterConnStatus');
+            if (data.connection === 'connected') {
+                dot.style.color = '#22c55e';
+                label.textContent = 'Connected to Presenter';
+            } else {
+                dot.style.color = '#ef4444';
+                label.textContent = 'Disconnected — check host/port and that Presenter is running';
+            }
+        }).catch(() => {});
+    }
+
+    check();
+    presenterPollTimer = setInterval(check, 3000);
+}
+
+document.addEventListener('DOMContentLoaded', loadPresenterSettings);

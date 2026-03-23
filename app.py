@@ -1691,6 +1691,48 @@ def set_kiosk_theme():
     return jsonify({'status': 'success', 'theme': kiosk_theme, 'font': kiosk_font})
 
 
+# ─── Presenter integration (Revival Fire Presenter WebSocket) ─────────
+
+presenter_config = {
+    'enabled': False,
+    'host': '',
+    'port': 4777,
+    'filters': ['scripture', 'song'],
+}
+
+@app.route('/api/presenter', methods=['GET'])
+def get_presenter():
+    return jsonify(presenter_config)
+
+
+@app.route('/api/presenter', methods=['POST'])
+def set_presenter():
+    global presenter_config
+    data = request.json
+    presenter_config['enabled'] = bool(data.get('enabled', False))
+    presenter_config['host'] = data.get('host', '').strip()
+    presenter_config['port'] = int(data.get('port', 4777))
+    presenter_config['filters'] = data.get('filters', ['scripture', 'song'])
+    print(f"[PRESENTER] Config updated: enabled={presenter_config['enabled']}, host={presenter_config['host']}, filters={presenter_config['filters']}")
+    return jsonify({'status': 'success', **presenter_config})
+
+
+presenter_connection_status = 'disconnected'
+
+@app.route('/api/presenter_status', methods=['GET'])
+def get_presenter_status():
+    return jsonify({'connection': presenter_connection_status})
+
+
+@app.route('/api/presenter_status', methods=['POST'])
+def set_presenter_status():
+    global presenter_connection_status
+    data = request.json
+    presenter_connection_status = data.get('status', 'disconnected')
+    print(f"[PRESENTER] Connection status: {presenter_connection_status}")
+    return jsonify({'status': 'ok'})
+
+
 # ─── Timer status (polled by kiosk + admin) ───────────────────────────
 
 @app.route('/api/timer_status')

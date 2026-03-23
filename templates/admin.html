@@ -235,6 +235,69 @@
                 </div>
             </div>
 
+            <!-- Presenter Integration -->
+            <div class="card" id="presenterCard">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-church"></i> Presenter Integration</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body">
+                    <p style="color:var(--text-dim); font-size:0.85rem; margin-bottom:1rem;">
+                        Connect to Revival Fire Presenter to receive live scriptures and song lyrics on the foldback screen.
+                    </p>
+
+                    <!-- Enable/Disable Switch -->
+                    <div class="presenter-toggle-row">
+                        <label class="toggle-label">Presenter Feed</label>
+                        <label class="switch">
+                            <input type="checkbox" id="presenterEnabled" onchange="togglePresenter()">
+                            <span class="slider round"></span>
+                        </label>
+                        <span class="presenter-status-text" id="presenterStatusText">Disabled</span>
+                    </div>
+
+                    <!-- Connection settings (always visible for setup) -->
+                    <div class="presenter-settings">
+                        <div class="field-row">
+                            <label>Presenter IP / Hostname</label>
+                            <input type="text" id="presenterHost" placeholder="e.g. 192.168.1.100"
+                                   style="width:100%; padding:0.6rem; background:var(--surface-lighter); border:1px solid var(--border); color:var(--text); border-radius:6px;">
+                        </div>
+                        <div class="field-row" style="margin-top:0.5rem;">
+                            <label>Port</label>
+                            <input type="number" id="presenterPort" value="4777"
+                                   style="width:100px; padding:0.6rem; background:var(--surface-lighter); border:1px solid var(--border); color:var(--text); border-radius:6px;">
+                        </div>
+
+                        <!-- Content filter checkboxes -->
+                        <div class="presenter-filters" style="margin-top:0.75rem;">
+                            <label style="color:var(--text-dim); font-size:0.85rem; display:block; margin-bottom:0.4rem;">Show content:</label>
+                            <label class="presenter-filter-option">
+                                <input type="checkbox" id="filterScripture" checked> Scriptures
+                            </label>
+                            <label class="presenter-filter-option">
+                                <input type="checkbox" id="filterSong" checked> Song Lyrics
+                            </label>
+                            <label class="presenter-filter-option">
+                                <input type="checkbox" id="filterCustom"> Custom Text
+                            </label>
+                        </div>
+
+                        <button class="btn btn-primary btn-sm" onclick="savePresenterSettings()" style="margin-top:0.75rem;">
+                            <i class="fas fa-save"></i> Save Settings
+                        </button>
+                    </div>
+
+                    <!-- Connection status -->
+                    <div class="presenter-connection-info" id="presenterConnectionInfo" style="margin-top:0.75rem; display:none;">
+                        <div style="font-size:0.8rem; color:var(--text-dim);">
+                            <i class="fas fa-circle" id="presenterDot" style="color:#ef4444;"></i>
+                            <span id="presenterConnStatus">Disconnected</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Countdown Timer -->
             <div class="card">
                 <div class="card-header" onclick="toggleCard(this)">

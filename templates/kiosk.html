@@ -351,6 +351,64 @@
             box-shadow: 0 0 20px rgba(99,102,241,0.5);
         }
 
+        /* ── Presenter Overlay (scriptures/songs from Revival Fire Presenter) ── */
+        #presenterScene {
+            background: #000;
+            z-index: 150;
+            padding: 5vh 6vw;
+        }
+        .presenter-overlay {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100%;
+            text-align: center;
+        }
+        .presenter-text {
+            font-size: clamp(2rem, 5vw, 5rem);
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.4;
+            text-shadow: 0 0 20px rgba(0,0,0,0.8), 2px 2px 6px rgba(0,0,0,0.9);
+            max-width: 90%;
+            word-wrap: break-word;
+            white-space: pre-line;
+        }
+        .presenter-text .verse-num {
+            font-size: 0.6em;
+            color: rgba(255,255,255,0.5);
+            vertical-align: super;
+            margin-right: 0.15em;
+        }
+        .presenter-subtext {
+            margin-top: 2vh;
+            font-size: clamp(1rem, 2.5vw, 2.5rem);
+            font-weight: 400;
+            color: rgba(255,255,255,0.6);
+            text-shadow: 0 0 10px rgba(0,0,0,0.6);
+        }
+        .presenter-status {
+            position: fixed;
+            top: 1vh;
+            right: 1.5vw;
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.2);
+            z-index: 151;
+        }
+        .presenter-status.connected { color: rgba(34,197,94,0.4); }
+        .presenter-status.disconnected { color: rgba(239,68,68,0.3); }
+
+        /* When presenter is active, fade it in */
+        #presenterScene {
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        #presenterScene.active {
+            opacity: 1;
+        }
+
         /* ── Mini timer ── */
         .mini-timer {
             display: none;
@@ -475,6 +533,15 @@
         <div class="msg-progress"><div class="msg-progress-fill" id="msgFill"></div></div>
     </div>
 
+    <!-- Presenter Overlay (scriptures/songs from Revival Fire Presenter) -->
+    <div class="scene" id="presenterScene">
+        <div class="presenter-overlay">
+            <div class="presenter-text" id="presenterText"></div>
+            <div class="presenter-subtext" id="presenterSubtext"></div>
+        </div>
+        <div class="presenter-status" id="presenterStatus"></div>
+    </div>
+
     <!-- Mini timer -->
     <div class="mini-timer" id="miniTimer">
         <div class="mini-label" id="miniLabel"></div>
@@ -500,8 +567,11 @@
         const pad = n => String(n).padStart(2, '0');
 
         function showScene(id) {
+            // If presenter is active, only allow presenter scene changes
+            if (presenterActive && id !== 'presenterScene' && id !== 'msgScene') return;
             document.querySelectorAll('.scene').forEach(s => s.classList.remove('active'));
-            document.getElementById(id).classList.add('active');
+            const el = document.getElementById(id);
+            if (el) el.classList.add('active');
         }
 
         function applyTheme(theme) {
@@ -810,6 +880,215 @@
             applyTheme(d.theme);
             applyFont(d.font);
         }).catch(()=>{});
+
+        // ═══════════════════════════════════════════════════════════
+        // Revival Fire Presenter — WebSocket Client
+        // Connects to the presenter software and displays scriptures/songs
+        // ═══════════════════════════════════════════════════════════
+
+        let presenterWs = null;
+        let presenterActive = false;       // Is presenter content currently showing?
+        let presenterConnected = false;
+        let presenterEnabled = false;
+        let presenterReconnectTimer = null;
+        let presenterConfigPollTimer = null;
+        let presenterHost = '';
+        let presenterPort = 4777;
+        let presenterFilters = ['scripture', 'song'];
+        let previousScene = 'idleScene';   // Scene to return to when presenter content goes away
+        const presenterText = document.getElementById('presenterText');
+        const presenterSubtext = document.getElementById('presenterSubtext');
+        const presenterStatus = document.getElementById('presenterStatus');
+
+        // Poll server for presenter config (admin can change it anytime)
+        function pollPresenterConfig() {
+            fetch('/api/presenter').then(r => r.json()).then(config => {
+                const wasEnabled = presenterEnabled;
+                presenterEnabled = config.enabled;
+                presenterHost = config.host || window.location.hostname || 'localhost';
+                presenterPort = config.port || 4777;
+                presenterFilters = config.filters || ['scripture', 'song'];
+
+                if (presenterEnabled && !wasEnabled) {
+                    // Just enabled — connect
+                    connectPresenter();
+                } else if (!presenterEnabled && wasEnabled) {
+                    // Just disabled — disconnect
+                    disconnectPresenter();
+                } else if (presenterEnabled && !presenterConnected && !presenterWs) {
+                    // Enabled but not connected — retry
+                    connectPresenter();
+                }
+            }).catch(() => {});
+        }
+
+        function reportPresenterStatus(status) {
+            fetch('/api/presenter_status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status }),
+            }).catch(() => {});
+        }
+
+        function disconnectPresenter() {
+            if (presenterWs) {
+                presenterWs.close();
+                presenterWs = null;
+            }
+            presenterConnected = false;
+            hidePresenter();
+            presenterStatus.textContent = '';
+            presenterStatus.className = 'presenter-status';
+            reportPresenterStatus('disconnected');
+            if (presenterReconnectTimer) {
+                clearTimeout(presenterReconnectTimer);
+                presenterReconnectTimer = null;
+            }
+        }
+
+        function connectPresenter() {
+            if (!presenterEnabled) return;
+            if (presenterWs && (presenterWs.readyState === WebSocket.CONNECTING || presenterWs.readyState === WebSocket.OPEN)) return;
+
+            const url = `ws://${presenterHost}:${presenterPort}`;
+            console.log('[Presenter] Connecting to', url);
+            presenterStatus.textContent = 'Connecting...';
+            presenterStatus.className = 'presenter-status disconnected';
+
+            try {
+                presenterWs = new WebSocket(url);
+            } catch (e) {
+                schedulePresenterReconnect();
+                return;
+            }
+
+            presenterWs.onopen = () => {
+                console.log('[Presenter] Connected');
+                presenterConnected = true;
+                presenterStatus.textContent = 'Presenter connected';
+                presenterStatus.className = 'presenter-status connected';
+                reportPresenterStatus('connected');
+
+                // Subscribe using the admin-configured filters
+                presenterWs.send(JSON.stringify({
+                    type: 'subscribe',
+                    filters: presenterFilters,
+                    options: {
+                        includeStyle: true,
+                        includeNext: false,
+                        includeBackground: false,
+                    }
+                }));
+            };
+
+            presenterWs.onmessage = (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    handlePresenterMessage(msg);
+                } catch (e) {
+                    console.warn('[Presenter] Bad message', e);
+                }
+            };
+
+            presenterWs.onclose = () => {
+                console.log('[Presenter] Disconnected');
+                presenterConnected = false;
+                presenterStatus.textContent = '';
+                presenterStatus.className = 'presenter-status disconnected';
+                reportPresenterStatus('disconnected');
+                hidePresenter();
+                schedulePresenterReconnect();
+            };
+
+            presenterWs.onerror = () => {
+                // onclose will fire after this
+            };
+        }
+
+        function schedulePresenterReconnect() {
+            if (presenterReconnectTimer) return;
+            presenterReconnectTimer = setTimeout(() => {
+                presenterReconnectTimer = null;
+                if (presenterEnabled) connectPresenter();
+            }, 5000);
+        }
+
+        function handlePresenterMessage(msg) {
+            console.log('[Presenter] Message:', msg.type, msg.contentType || msg.state || '');
+            switch (msg.type) {
+                case 'slide':
+                    showPresenterContent(msg);
+                    break;
+
+                case 'state':
+                    if (msg.state === 'black' || msg.state === 'clear' || msg.state === 'logo' || msg.state === 'inactive') {
+                        hidePresenter();
+                    }
+                    break;
+
+                case 'welcome':
+                    console.log('[Presenter] Server:', msg.serverName, 'v' + msg.version);
+                    break;
+
+                case 'subscribed':
+                    console.log('[Presenter] Subscribed to:', msg.filters);
+                    break;
+            }
+        }
+
+        function showPresenterContent(msg) {
+            // Remember current scene so we can return to it
+            if (!presenterActive) {
+                const activeScene = document.querySelector('.scene.active');
+                if (activeScene && activeScene.id !== 'presenterScene') {
+                    previousScene = activeScene.id;
+                }
+            }
+
+            // Apply text
+            let textHtml = (msg.text || '').replace(/\n/g, '<br>');
+            presenterText.innerHTML = textHtml;
+            presenterSubtext.textContent = msg.subtext || '';
+
+            // Apply style if provided
+            if (msg.style) {
+                const s = msg.style;
+                presenterText.style.fontFamily = s.fontFamily || '';
+                presenterText.style.fontSize = s.fontSize ? `clamp(1.5rem, ${s.fontSize * 0.08}vw, ${s.fontSize * 1.2}px)` : '';
+                presenterText.style.fontWeight = s.fontWeight || '';
+                presenterText.style.color = s.fontColor || '#ffffff';
+                presenterText.style.textAlign = s.textAlign || 'center';
+                presenterText.style.lineHeight = s.lineHeight || '';
+
+                presenterSubtext.style.fontFamily = s.fontFamily || '';
+                presenterSubtext.style.color = s.subtextColor || 'rgba(255,255,255,0.6)';
+                presenterSubtext.style.fontSize = s.subtextFontSize ? `clamp(0.8rem, ${s.subtextFontSize * 0.06}vw, ${s.subtextFontSize * 1.2}px)` : '';
+
+                // Vertical alignment
+                const overlay = document.querySelector('.presenter-overlay');
+                if (overlay) {
+                    overlay.style.justifyContent =
+                        s.verticalAlign === 'top' ? 'flex-start' :
+                        s.verticalAlign === 'bottom' ? 'flex-end' : 'center';
+                }
+            }
+
+            // Show presenter scene
+            showScene('presenterScene');
+            presenterActive = true;
+        }
+
+        function hidePresenter() {
+            if (!presenterActive) return;
+            presenterActive = false;
+
+            // Return to previous scene
+            showScene(previousScene || 'idleScene');
+        }
+
+        // Boot presenter — poll config from server, connect if enabled
+        pollPresenterConfig();
+        presenterConfigPollTimer = setInterval(pollPresenterConfig, 5000);
 
         // Boot
         updateClock();

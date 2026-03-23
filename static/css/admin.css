@@ -1122,3 +1122,108 @@ small.help-text {
     .tab-header { display: none; }
     body { padding-bottom: 0; }
 }
+
+/* ── Presenter Integration ── */
+.presenter-toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: var(--surface-lighter);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.toggle-label {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+    flex: 1;
+}
+
+.presenter-status-text {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+}
+
+.presenter-status-text.active {
+    color: #22c55e;
+    font-weight: 600;
+}
+
+/* Toggle switch */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 48px;
+    height: 26px;
+    flex-shrink: 0;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: #333;
+    transition: 0.3s;
+}
+
+.slider.round {
+    border-radius: 26px;
+}
+
+.slider:before {
+    content: "";
+    position: absolute;
+    height: 20px;
+    width: 20px;
+    left: 3px;
+    bottom: 3px;
+    background: white;
+    transition: 0.3s;
+    border-radius: 50%;
+}
+
+.switch input:checked + .slider {
+    background: #6366f1;
+}
+
+.switch input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+.presenter-filter-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    margin-right: 1rem;
+    font-size: 0.85rem;
+    color: var(--text);
+    cursor: pointer;
+}
+
+.presenter-filter-option input[type="checkbox"] {
+    accent-color: #6366f1;
+}
+
+.field-row label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.25rem;
+}
+
+.presenter-settings.disabled {
+    opacity: 0.4;
+    pointer-events: none;
+}
