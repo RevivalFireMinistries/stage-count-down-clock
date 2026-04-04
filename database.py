@@ -93,11 +93,23 @@ def run_migrations(conn):
             c.execute("UPDATE programs SET synced_date = ? WHERE source = 'remote'", (today,))
             migrations_run.append("synced_date")
 
+        # Migration 6: Add presenter settings to kiosk_settings
+        kiosk_columns = get_table_columns(c, 'kiosk_settings')
+
+        if 'presenter_enabled' not in kiosk_columns:
+            print("Running migration: Adding presenter settings to kiosk_settings...")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_enabled BOOLEAN DEFAULT FALSE")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_host TEXT DEFAULT ''")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_port INTEGER DEFAULT 4777")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_filters TEXT DEFAULT 'scripture,song'")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_font_scale REAL DEFAULT 1.0")
+            migrations_run.append("presenter_settings")
+
         if migrations_run:
             print(f"Migrations completed: {', '.join(migrations_run)}")
 
         conn.commit()
-        
+
     except Exception as e:
         print(f"Migration error: {e}")
         # Don't fail - the tables might already have the columns

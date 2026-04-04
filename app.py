@@ -224,27 +224,46 @@ kiosk_font = 'inter'
 
 
 def load_kiosk_settings():
-    """Load persisted theme/font from database"""
-    global kiosk_theme, kiosk_font
+    """Load persisted theme/font/presenter settings from database"""
+    global kiosk_theme, kiosk_font, presenter_config
     try:
         with get_db() as conn:
             c = conn.cursor()
-            c.execute('SELECT theme, font FROM kiosk_settings WHERE id = 1')
+            c.execute('''SELECT theme, font, presenter_enabled, presenter_host,
+                                presenter_port, presenter_filters, presenter_font_scale
+                         FROM kiosk_settings WHERE id = 1''')
             row = c.fetchone()
             if row:
                 kiosk_theme = row[0]
                 kiosk_font = row[1]
-                print(f"[SETTINGS] Loaded theme={kiosk_theme}, font={kiosk_font}")
+                if row[2] is not None:
+                    presenter_config['enabled'] = bool(row[2])
+                    presenter_config['host'] = row[3] or ''
+                    presenter_config['port'] = row[4] or 4777
+                    presenter_config['filters'] = (row[5] or 'scripture,song').split(',')
+                    presenter_config['font_scale'] = row[6] or 1.0
+                print(f"[SETTINGS] Loaded theme={kiosk_theme}, font={kiosk_font}, presenter={presenter_config['enabled']}, host={presenter_config['host']}")
     except Exception as e:
         print(f"[SETTINGS] Could not load settings: {e}")
 
 
 def save_kiosk_settings():
-    """Persist current theme/font to database"""
+    """Persist current theme/font/presenter settings to database"""
     try:
+        filters_str = ','.join(presenter_config.get('filters', ['scripture', 'song']))
         with get_db() as conn:
-            conn.execute('UPDATE kiosk_settings SET theme = ?, font = ? WHERE id = 1',
-                         (kiosk_theme, kiosk_font))
+            conn.execute('''UPDATE kiosk_settings
+                            SET theme = ?, font = ?,
+                                presenter_enabled = ?, presenter_host = ?,
+                                presenter_port = ?, presenter_filters = ?,
+                                presenter_font_scale = ?
+                            WHERE id = 1''',
+                         (kiosk_theme, kiosk_font,
+                          presenter_config.get('enabled', False),
+                          presenter_config.get('host', ''),
+                          presenter_config.get('port', 4777),
+                          filters_str,
+                          presenter_config.get('font_scale', 1.0)))
             conn.commit()
     except Exception as e:
         print(f"[SETTINGS] Could not save settings: {e}")
@@ -1730,6 +1749,7 @@ def set_presenter():
     presenter_config['port'] = int(data.get('port', 4777))
     presenter_config['filters'] = data.get('filters', ['scripture', 'song'])
     presenter_config['font_scale'] = max(0.5, min(3.0, float(data.get('font_scale', 1.0))))
+    save_kiosk_settings()
     print(f"[PRESENTER] Config updated: enabled={presenter_config['enabled']}, host={presenter_config['host']}, filters={presenter_config['filters']}, font_scale={presenter_config['font_scale']}")
     return jsonify({'status': 'success', **presenter_config})
 
