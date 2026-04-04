@@ -372,6 +372,14 @@ def update_timer_display():
                         current_timer['is_paused'] = False
                     else:
                         move_to_next_item()
+                elif current_timer['is_running']:
+                    # DB says not running but in-memory still thinks so — reset
+                    current_timer['is_running'] = False
+                    current_timer['is_paused'] = False
+                    current_timer['current_activity'] = ''
+                    current_timer['time_remaining'] = '00:00'
+                    current_timer['total_duration'] = 0
+                    current_timer['end_time'] = None
 
         except Exception as e:
             print(f"[TIMER] Error in timer thread: {e}")
@@ -703,9 +711,16 @@ def move_to_next_item():
                 ''', (next_item['id'], datetime.now().isoformat()))
                 conn.commit()
             else:
-                # End of program
+                # End of program — reset in-memory state
                 c.execute('UPDATE current_state SET is_running = FALSE, manual_override = FALSE WHERE id = 1')
                 conn.commit()
+                current_timer['is_running'] = False
+                current_timer['is_paused'] = False
+                current_timer['current_activity'] = ''
+                current_timer['time_remaining'] = '00:00'
+                current_timer['total_duration'] = 0
+                current_timer['end_time'] = None
+                print(f"[TIMER] Program ended, returned to idle")
 
                 # Auto-advance: try to start next queued program
                 next_prog = queue_peek_next()
