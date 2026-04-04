@@ -283,6 +283,19 @@
                             </label>
                         </div>
 
+                        <!-- Font size scale -->
+                        <div style="margin-top:0.75rem;">
+                            <label style="color:var(--text-dim); font-size:0.85rem; display:block; margin-bottom:0.4rem;">
+                                Display Font Size: <span id="fontScaleValue">1.0x</span>
+                            </label>
+                            <input type="range" id="presenterFontScale" min="0.5" max="3.0" step="0.1" value="1.0"
+                                   oninput="document.getElementById('fontScaleValue').textContent = this.value + 'x'"
+                                   style="width:100%; accent-color:var(--accent);">
+                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted);">
+                                <span>Small</span><span>Normal</span><span>Large</span>
+                            </div>
+                        </div>
+
                         <button class="btn btn-primary btn-sm" onclick="savePresenterSettings()" style="margin-top:0.75rem;">
                             <i class="fas fa-save"></i> Save Settings
                         </button>

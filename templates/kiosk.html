@@ -895,6 +895,7 @@
         let presenterHost = '';
         let presenterPort = 4777;
         let presenterFilters = ['scripture', 'song'];
+        let presenterFontScale = 1.0;
         let previousScene = 'idleScene';   // Scene to return to when presenter content goes away
         const presenterText = document.getElementById('presenterText');
         const presenterSubtext = document.getElementById('presenterSubtext');
@@ -908,6 +909,7 @@
                 presenterHost = config.host || window.location.hostname || 'localhost';
                 presenterPort = config.port || 4777;
                 presenterFilters = config.filters || ['scripture', 'song'];
+                presenterFontScale = config.font_scale || 1.0;
 
                 if (presenterEnabled && !wasEnabled) {
                     // Just enabled — connect
@@ -1017,6 +1019,11 @@
             console.log('[Presenter] Message:', msg.type, msg.contentType || msg.state || '');
             switch (msg.type) {
                 case 'slide':
+                    // Only show content types the admin has enabled
+                    if (msg.contentType && !presenterFilters.includes(msg.contentType)) {
+                        console.log('[Presenter] Filtered out:', msg.contentType, '(allowed:', presenterFilters.join(', ') + ')');
+                        return;
+                    }
                     showPresenterContent(msg);
                     break;
 
@@ -1050,11 +1057,13 @@
             presenterText.innerHTML = textHtml;
             presenterSubtext.textContent = msg.subtext || '';
 
-            // Apply style if provided
+            // Apply style if provided, with admin font scale override
+            const scale = presenterFontScale || 1.0;
             if (msg.style) {
                 const s = msg.style;
                 presenterText.style.fontFamily = s.fontFamily || '';
-                presenterText.style.fontSize = s.fontSize ? `clamp(1.5rem, ${s.fontSize * 0.08}vw, ${s.fontSize * 1.2}px)` : '';
+                const baseFontSize = s.fontSize || 36;
+                presenterText.style.fontSize = `clamp(${1.5 * scale}rem, ${baseFontSize * 0.08 * scale}vw, ${baseFontSize * 1.2 * scale}px)`;
                 presenterText.style.fontWeight = s.fontWeight || '';
                 presenterText.style.color = s.fontColor || '#ffffff';
                 presenterText.style.textAlign = s.textAlign || 'center';
@@ -1062,7 +1071,8 @@
 
                 presenterSubtext.style.fontFamily = s.fontFamily || '';
                 presenterSubtext.style.color = s.subtextColor || 'rgba(255,255,255,0.6)';
-                presenterSubtext.style.fontSize = s.subtextFontSize ? `clamp(0.8rem, ${s.subtextFontSize * 0.06}vw, ${s.subtextFontSize * 1.2}px)` : '';
+                const baseSubSize = s.subtextFontSize || 18;
+                presenterSubtext.style.fontSize = `clamp(${0.8 * scale}rem, ${baseSubSize * 0.06 * scale}vw, ${baseSubSize * 1.2 * scale}px)`;
 
                 // Vertical alignment
                 const overlay = document.querySelector('.presenter-overlay');
@@ -1071,6 +1081,10 @@
                         s.verticalAlign === 'top' ? 'flex-start' :
                         s.verticalAlign === 'bottom' ? 'flex-end' : 'center';
                 }
+            } else {
+                // No style from presenter — apply scale to defaults
+                presenterText.style.fontSize = `clamp(${1.5 * scale}rem, ${36 * 0.08 * scale}vw, ${36 * 1.2 * scale}px)`;
+                presenterSubtext.style.fontSize = `clamp(${0.8 * scale}rem, ${18 * 0.06 * scale}vw, ${18 * 1.2 * scale}px)`;
             }
 
             // Show presenter scene

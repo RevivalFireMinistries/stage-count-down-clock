@@ -883,10 +883,13 @@ function loadPresenterSettings() {
             const saved = JSON.parse(localStorage.getItem('presenterSettings') || '{}');
             presenterSettings = { ...presenterSettings, ...saved, host: data.host || saved.host, port: data.port || saved.port };
         } catch {}
+        presenterSettings.font_scale = data.font_scale || saved.font_scale || 1.0;
         document.getElementById('presenterEnabled').checked = presenterSettings.enabled;
         document.getElementById('filterScripture').checked = presenterSettings.filters.includes('scripture');
         document.getElementById('filterSong').checked = presenterSettings.filters.includes('song');
         document.getElementById('filterCustom').checked = presenterSettings.filters.includes('custom');
+        document.getElementById('presenterFontScale').value = presenterSettings.font_scale;
+        document.getElementById('fontScaleValue').textContent = presenterSettings.font_scale + 'x';
         updatePresenterUI();
     }).catch(() => {});
 }
@@ -905,6 +908,7 @@ function savePresenterSettings() {
     if (document.getElementById('filterScripture').checked) presenterSettings.filters.push('scripture');
     if (document.getElementById('filterSong').checked) presenterSettings.filters.push('song');
     if (document.getElementById('filterCustom').checked) presenterSettings.filters.push('custom');
+    presenterSettings.font_scale = parseFloat(document.getElementById('presenterFontScale').value) || 1.0;
     savePresenterSettingsLocal();
     pushPresenterConfig();
     showAlert('Presenter settings saved', 'success');

@@ -1713,6 +1713,7 @@ presenter_config = {
     'host': '',
     'port': 4777,
     'filters': ['scripture', 'song'],
+    'font_scale': 1.0,
 }
 
 @app.route('/api/presenter', methods=['GET'])
@@ -1728,7 +1729,8 @@ def set_presenter():
     presenter_config['host'] = data.get('host', '').strip()
     presenter_config['port'] = int(data.get('port', 4777))
     presenter_config['filters'] = data.get('filters', ['scripture', 'song'])
-    print(f"[PRESENTER] Config updated: enabled={presenter_config['enabled']}, host={presenter_config['host']}, filters={presenter_config['filters']}")
+    presenter_config['font_scale'] = max(0.5, min(3.0, float(data.get('font_scale', 1.0))))
+    print(f"[PRESENTER] Config updated: enabled={presenter_config['enabled']}, host={presenter_config['host']}, filters={presenter_config['filters']}, font_scale={presenter_config['font_scale']}")
     return jsonify({'status': 'success', **presenter_config})
 
 
