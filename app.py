@@ -636,14 +636,15 @@ def sync_programs_once():
         return False
 
 
+sync_interval_minutes = 10  # Default, can be changed via API
+
 def sync_programs_from_remote():
-    """Background thread that polls the remote API every 10 minutes.
+    """Background thread that polls the remote API on a configurable interval.
     Defers sync while a program/countdown is actively running to save
     CPU, network, and DB I/O on the Pi."""
     while True:
         try:
             if _is_busy():
-                # Still sleeping but longer — no point syncing mid-service
                 time.sleep(120)
                 continue
             cleanup_old_remote_programs()
@@ -652,7 +653,7 @@ def sync_programs_from_remote():
             populate_queue_from_db()
         except Exception as e:
             print(f"[REMOTE SYNC] Thread error: {e}")
-        time.sleep(600)
+        time.sleep(sync_interval_minutes * 60)
 
 
 # ─── Smart start helpers ──────────────────────────────────────────────
@@ -1768,6 +1769,38 @@ def set_presenter_status():
     presenter_connection_status = data.get('status', 'disconnected')
     print(f"[PRESENTER] Connection status: {presenter_connection_status}")
     return jsonify({'status': 'ok'})
+
+
+# ─── Remote sync control ─────────────────────────────────────────────
+
+@app.route('/api/sync', methods=['GET'])
+def get_sync_settings():
+    return jsonify({'interval_minutes': sync_interval_minutes})
+
+
+@app.route('/api/sync', methods=['POST'])
+def set_sync_settings():
+    global sync_interval_minutes
+    data = request.json
+    interval = data.get('interval_minutes')
+    if interval is not None:
+        sync_interval_minutes = max(1, min(60, int(interval)))
+        print(f"[SYNC] Interval changed to {sync_interval_minutes} minutes")
+    return jsonify({'status': 'success', 'interval_minutes': sync_interval_minutes})
+
+
+@app.route('/api/sync/now', methods=['POST'])
+def sync_now():
+    """Manually trigger a remote sync."""
+    try:
+        cleanup_old_remote_programs()
+        sync_programs_once()
+        populate_queue_from_db()
+        print("[SYNC] Manual sync completed")
+        return jsonify({'status': 'success', 'message': 'Sync completed'})
+    except Exception as e:
+        print(f"[SYNC] Manual sync error: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
 # ─── Timer status (polled by kiosk + admin) ───────────────────────────

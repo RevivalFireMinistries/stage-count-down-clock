@@ -967,3 +967,46 @@ function pollPresenterConnection() {
 }
 
 document.addEventListener('DOMContentLoaded', loadPresenterSettings);
+
+// ─── Remote Sync ──────────────────────────────────────────────────
+
+function loadSyncSettings() {
+    fetch('/api/sync').then(r => r.json()).then(data => {
+        document.getElementById('syncInterval').value = data.interval_minutes || 10;
+    }).catch(() => {});
+}
+
+function saveSyncInterval() {
+    const interval = parseInt(document.getElementById('syncInterval').value) || 10;
+    fetch('/api/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ interval_minutes: interval }),
+    }).then(r => r.json()).then(() => {
+        showAlert(`Sync interval: ${interval} min`, 'success');
+    }).catch(() => showAlert('Error saving interval', 'error'));
+}
+
+async function syncNow() {
+    const status = document.getElementById('syncStatus');
+    status.textContent = 'Syncing...';
+    status.style.color = 'var(--accent)';
+    try {
+        const res = await fetch('/api/sync/now', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            status.textContent = 'Sync completed!';
+            status.style.color = '#22c55e';
+            showAlert('Remote sync completed', 'success');
+        } else {
+            status.textContent = 'Sync failed: ' + (data.message || 'Unknown error');
+            status.style.color = '#ef4444';
+        }
+    } catch (e) {
+        status.textContent = 'Sync failed: network error';
+        status.style.color = '#ef4444';
+    }
+    setTimeout(() => { status.textContent = ''; }, 5000);
+}
+
+document.addEventListener('DOMContentLoaded', loadSyncSettings);
