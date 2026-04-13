@@ -374,6 +374,16 @@ def update_timer_display():
 
                 state = get_current_state()
                 if state and state[0] and not state[1]:  # Running and not paused
+                    if not state[2] or not state[4]:
+                        # Missing start_time or duration — stale state, reset
+                        with get_db() as conn:
+                            conn.execute('UPDATE current_state SET is_running = FALSE WHERE id = 1')
+                            conn.commit()
+                        current_timer['is_running'] = False
+                        current_timer['current_activity'] = ''
+                        current_timer['time_remaining'] = '00:00'
+                        time.sleep(1)
+                        continue
                     start_time = datetime.fromisoformat(state[2])
                     duration = state[4] * 60
                     end_time = start_time + timedelta(seconds=duration)
@@ -426,20 +436,41 @@ def process_queue():
         state = c.fetchone()
 
     if scheduled_start <= current_time:
-        if scheduled_start == current_time:
-            queue_pop_next()
-            try:
-                start_program_smart_internal(program_id)
-                print(f"[QUEUE] Started program: {program_name}")
-            except Exception as e:
-                print(f"[QUEUE] Error starting {program_name}: {e}")
-        elif not state or (not state[0] and not state[1]):
-            queue_pop_next()
-            try:
-                start_program_smart_internal(program_id)
-                print(f"[QUEUE] Late-started program: {program_name}")
-            except Exception as e:
-                print(f"[QUEUE] Error late-starting {program_name}: {e}")
+        # Check if program is still within its time frame
+        still_valid = True
+        try:
+            with get_db() as conn:
+                c = conn.cursor()
+                c.execute('''SELECT COALESCE(SUM(ps.duration_minutes), 0)
+                             FROM program_schedules ps WHERE ps.program_id = ?''', (program_id,))
+                total_duration = c.fetchone()[0] or 5
+            sh, sm = map(int, scheduled_start.split(':'))
+            program_start = now.replace(hour=sh, minute=sm, second=0)
+            program_end = program_start + timedelta(minutes=total_duration)
+            if now > program_end:
+                # Program's entire window has passed — skip it
+                queue_pop_next()
+                print(f"[QUEUE] Skipped expired program: {program_name} (ended at {program_end.strftime('%H:%M')})")
+                still_valid = False
+        except Exception:
+            pass
+
+        if still_valid:
+            if scheduled_start == current_time:
+                queue_pop_next()
+                try:
+                    start_program_smart_internal(program_id)
+                    print(f"[QUEUE] Started program: {program_name}")
+                except Exception as e:
+                    print(f"[QUEUE] Error starting {program_name}: {e}")
+            elif not state or (not state[0] and not state[1]):
+                # Late but still within time frame — smart start
+                queue_pop_next()
+                try:
+                    start_program_smart_internal(program_id)
+                    print(f"[QUEUE] Smart-started late program: {program_name}")
+                except Exception as e:
+                    print(f"[QUEUE] Error smart-starting {program_name}: {e}")
     else:
         if not state or not state[0]:
             update_waiting_from_queue()
@@ -651,6 +682,7 @@ def sync_programs_from_remote():
             cleanup_old_records()
             sync_programs_once()
             populate_queue_from_db()
+            process_queue()
         except Exception as e:
             print(f"[REMOTE SYNC] Thread error: {e}")
         time.sleep(sync_interval_minutes * 60)
@@ -1796,6 +1828,7 @@ def sync_now():
         cleanup_old_remote_programs()
         sync_programs_once()
         populate_queue_from_db()
+        process_queue()
         print("[SYNC] Manual sync completed")
         return jsonify({'status': 'success', 'message': 'Sync completed'})
     except Exception as e:
