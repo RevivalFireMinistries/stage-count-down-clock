@@ -1251,15 +1251,16 @@ async function loadGitInfo() {
         if (!res.ok) return;
         const data = await res.json();
 
-        const branchEl = document.getElementById('gitBranch');
-        const commitEl = document.getElementById('gitCommit');
-        const dateEl = document.getElementById('gitDate');
+        // Version display
+        const branchEl = document.getElementById('sysBranch');
+        const commitEl = document.getElementById('sysCommit');
+        if (branchEl) branchEl.textContent = data.branch || '—';
+        if (commitEl) commitEl.textContent = data.commit_short
+            ? `${data.commit_short} ${data.commit_message}`
+            : '—';
+
+        // Branch selector
         const branchSelect = document.getElementById('branchSelect');
-
-        if (branchEl) branchEl.textContent = data.branch || '-';
-        if (commitEl) commitEl.textContent = data.commit_short ? `${data.commit_short} — ${data.commit_message}` : '-';
-        if (dateEl) dateEl.textContent = data.commit_date || '-';
-
         if (branchSelect && data.branches) {
             branchSelect.innerHTML = '';
             data.branches.forEach(b => {
@@ -1270,67 +1271,112 @@ async function loadGitInfo() {
                 branchSelect.appendChild(opt);
             });
         }
+
+        // Rollback list
+        const list = document.getElementById('rollbackList');
+        if (list && data.commits) {
+            list.innerHTML = '';
+            data.commits.forEach((c, i) => {
+                const el = document.createElement('div');
+                el.className = 'rollback-item';
+                const isCurrent = i === 0;
+                el.innerHTML = `
+                    <div class="rollback-item-info">
+                        <div class="rollback-item-msg">${c.message}</div>
+                        <div class="rollback-item-meta">${c.short} · ${c.age}</div>
+                    </div>
+                    ${isCurrent
+                        ? '<span class="rollback-item-badge">current</span>'
+                        : `<button class="rollback-item-btn" onclick="rollbackTo('${c.hash}','${c.short}')"><i class="fas fa-undo"></i> Restore</button>`
+                    }`;
+                list.appendChild(el);
+            });
+        }
     } catch (e) { console.error('Error loading git info:', e); }
 }
 
-async function rollbackTo(commitHash) {
-    if (!confirm('Rollback to this commit? The app will restart.')) return;
+async function rollbackTo(commitHash, short) {
+    if (!confirm(`Restore version ${short || commitHash.substring(0,7)}? You should reboot after.`)) return;
     try {
         const res = await fetch('/api/system/rollback', {
             method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ commit: commitHash })
         });
         const data = await res.json();
-        if (res.ok) showAlert('Rolling back... app will restart');
-        else showAlert(data.error || 'Rollback failed', 'error');
+        if (res.ok) {
+            showAlert(`Restored to ${short || commitHash.substring(0,7)} — reboot to apply`, 'success');
+            loadGitInfo();
+        } else showAlert(data.error || 'Rollback failed', 'error');
     } catch (e) { showAlert('Rollback failed', 'error'); }
 }
 
 async function switchBranch() {
     const branch = document.getElementById('branchSelect').value;
+    const current = document.getElementById('sysBranch').textContent;
     if (!branch) return;
-    if (!confirm(`Switch to branch "${branch}"? The app will restart.`)) return;
+    if (branch === current) { showAlert('Already on ' + branch); return; }
+    if (!confirm(`Switch to branch "${branch}"? You should reboot after.`)) return;
+    const output = document.getElementById('systemOutput');
+    output.style.display = 'block';
+    output.textContent = `$ git checkout ${branch}\n`;
     try {
         const res = await fetch('/api/system/switch_branch', {
             method: 'POST', headers: {'Content-Type':'application/json'},
             body: JSON.stringify({ branch })
         });
         const data = await res.json();
-        if (res.ok) showAlert(`Switching to ${branch}... app will restart`);
-        else showAlert(data.error || 'Switch failed', 'error');
-    } catch (e) { showAlert('Branch switch failed', 'error'); }
+        output.textContent += data.message || data.error || '';
+        if (res.ok) {
+            showAlert(`Switched to ${branch} — reboot to apply`, 'success');
+            loadGitInfo();
+        } else showAlert(data.error || 'Switch failed', 'error');
+    } catch (e) {
+        output.textContent += 'Network error';
+        showAlert('Branch switch failed', 'error');
+    }
 }
 
 async function systemUpdate() {
-    if (!confirm('Pull latest updates and restart the app?')) return;
-    const statusEl = document.getElementById('updateStatus');
-    if (statusEl) {
-        statusEl.textContent = 'Updating...';
-        statusEl.style.color = 'var(--accent)';
-    }
+    const btn = document.getElementById('updateBtn');
+    const output = document.getElementById('systemOutput');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Updating...';
+    output.style.display = 'block';
+    output.textContent = '$ git pull\n';
     try {
         const res = await fetch('/api/system/update', { method: 'POST' });
         const data = await res.json();
-        if (res.ok) {
-            if (statusEl) { statusEl.textContent = 'Update complete — restarting...'; statusEl.style.color = '#22c55e'; }
-            showAlert('Update pulled — app will restart');
+        output.textContent += data.output || 'No output';
+        if (data.status === 'success') {
+            showAlert('Update complete — reboot to apply', 'success');
+            loadGitInfo();
         } else {
-            if (statusEl) { statusEl.textContent = data.error || 'Update failed'; statusEl.style.color = '#ef4444'; }
-            showAlert(data.error || 'Update failed', 'error');
+            showAlert('Update failed', 'error');
         }
     } catch (e) {
-        if (statusEl) { statusEl.textContent = 'Update failed: network error'; statusEl.style.color = '#ef4444'; }
+        output.textContent += 'Network error';
         showAlert('Update failed', 'error');
     }
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-download"></i> Update';
 }
 
 async function systemReboot() {
-    if (!confirm('Reboot the system? This will restart the Raspberry Pi.')) return;
+    if (!confirm('Reboot the system? The timer will be offline for about 30 seconds.')) return;
+    const output = document.getElementById('systemOutput');
+    output.style.display = 'block';
+    output.textContent = 'Rebooting...\nThe page will reconnect automatically.';
+    showAlert('Rebooting...', 'info');
     try {
-        const res = await fetch('/api/system/reboot', { method: 'POST' });
-        if (res.ok) showAlert('Rebooting...');
-        else showAlert('Reboot failed', 'error');
-    } catch (e) { showAlert('Reboot failed', 'error'); }
+        await fetch('/api/system/reboot', { method: 'POST' });
+    } catch (e) {}
+    setTimeout(function poll() {
+        fetch('/api/timer_status').then(() => {
+            output.textContent += '\nBack online!';
+            showAlert('System rebooted', 'success');
+            location.reload();
+        }).catch(() => setTimeout(poll, 3000));
+    }, 10000);
 }
 
 document.addEventListener('DOMContentLoaded', loadGitInfo);

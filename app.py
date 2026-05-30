@@ -2028,78 +2028,168 @@ def _git_app_dir():
     return os.path.dirname(os.path.abspath(__file__))
 
 
-@app.route('/api/system/git_info', methods=['GET'])
+@app.route('/api/system/git', methods=['GET'])
 def git_info():
     """Return current branch, recent commits, and available branches."""
     try:
         app_dir = _git_app_dir()
 
-        branch = subprocess.check_output(
+        branch = subprocess.run(
             ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-            cwd=app_dir, stderr=subprocess.DEVNULL
-        ).decode().strip()
+            cwd=app_dir, capture_output=True, text=True, timeout=10
+        ).stdout.strip()
 
-        log_output = subprocess.check_output(
-            ['git', 'log', '--oneline', '-10'],
-            cwd=app_dir, stderr=subprocess.DEVNULL
-        ).decode().strip()
+        # Current commit details
+        commit_line = subprocess.run(
+            ['git', 'log', '-1', '--format=%h|%s|%cr'],
+            cwd=app_dir, capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        parts = commit_line.split('|', 2)
+        commit_short = parts[0] if parts else ''
+        commit_message = parts[1] if len(parts) > 1 else ''
+        commit_date = parts[2] if len(parts) > 2 else ''
+
+        # Last 5 commits for rollback
+        log_output = subprocess.run(
+            ['git', 'log', '-5', '--format=%H|%h|%s|%cr'],
+            cwd=app_dir, capture_output=True, text=True, timeout=10
+        ).stdout.strip()
         commits = []
         for line in log_output.splitlines():
-            parts = line.split(' ', 1)
-            if len(parts) == 2:
-                commits.append({'hash': parts[0], 'message': parts[1]})
+            p = line.split('|', 3)
+            if len(p) >= 4:
+                commits.append({
+                    'hash': p[0], 'short': p[1],
+                    'message': p[2], 'age': p[3]
+                })
 
-        branches_output = subprocess.check_output(
-            ['git', 'branch', '-a'],
-            cwd=app_dir, stderr=subprocess.DEVNULL
-        ).decode().strip()
-        branches = [b.strip().lstrip('* ') for b in branches_output.splitlines()]
+        # Branches
+        branches_output = subprocess.run(
+            ['git', 'branch', '-a', '--format=%(refname:short)'],
+            cwd=app_dir, capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+        seen = set()
+        branches = []
+        for b in branches_output.splitlines():
+            b = b.strip()
+            name = b.replace('origin/', '') if b.startswith('origin/') else b
+            if not name or name == 'HEAD' or name in seen:
+                continue
+            seen.add(name)
+            branches.append(name)
 
         return jsonify({
             'branch': branch,
+            'commit_short': commit_short,
+            'commit_message': commit_message,
+            'commit_date': commit_date,
             'commits': commits,
-            'branches': branches
+            'branches': sorted(branches)
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/system/update', methods=['POST'])
+def system_update():
+    """Run git pull to update the app."""
+    app_dir = _git_app_dir()
+    try:
+        result = subprocess.run(
+            ['git', 'pull'],
+            cwd=app_dir, capture_output=True, text=True, timeout=30
+        )
+        output = result.stdout.strip()
+        if result.stderr.strip():
+            output += '\n' + result.stderr.strip()
+        print(f"[SYSTEM] git pull: {output}")
+        return jsonify({
+            'status': 'success' if result.returncode == 0 else 'error',
+            'output': output
+        })
+    except subprocess.TimeoutExpired:
+        return jsonify({'status': 'error', 'output': 'Timed out after 30s'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'output': str(e)}), 500
+
+
 @app.route('/api/system/rollback', methods=['POST'])
 def rollback():
     """Rollback to a specific commit."""
-    data = request.json
-    commit_hash = data.get('commit')
+    commit_hash = (request.json or {}).get('commit')
     if not commit_hash:
         return jsonify({'error': 'commit hash is required'}), 400
 
     try:
         app_dir = _git_app_dir()
-        subprocess.check_output(
+        result = subprocess.run(
             ['git', 'checkout', commit_hash, '--', '.'],
-            cwd=app_dir, stderr=subprocess.STDOUT
-        ).decode().strip()
+            cwd=app_dir, capture_output=True, text=True, timeout=15
+        )
+        output = result.stdout.strip()
+        if result.stderr.strip():
+            output += '\n' + result.stderr.strip()
+        if result.returncode != 0:
+            return jsonify({'error': output or 'Rollback failed'}), 500
+        print(f"[SYSTEM] Rolled back to {commit_hash}")
         return jsonify({'status': 'success', 'message': f'Rolled back to {commit_hash}'})
-    except subprocess.CalledProcessError as e:
-        return jsonify({'error': e.output.decode()}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/system/switch_branch', methods=['POST'])
 def switch_branch():
     """Switch to a different git branch."""
-    data = request.json
-    branch = data.get('branch')
+    branch = (request.json or {}).get('branch')
     if not branch:
         return jsonify({'error': 'branch name is required'}), 400
 
     try:
         app_dir = _git_app_dir()
-        subprocess.check_output(
+        # Fetch latest first
+        subprocess.run(['git', 'fetch', '--all'],
+                      cwd=app_dir, capture_output=True, text=True, timeout=30)
+        result = subprocess.run(
             ['git', 'checkout', branch],
-            cwd=app_dir, stderr=subprocess.STDOUT
-        ).decode().strip()
-        return jsonify({'status': 'success', 'message': f'Switched to branch {branch}'})
-    except subprocess.CalledProcessError as e:
-        return jsonify({'error': e.output.decode()}), 500
+            cwd=app_dir, capture_output=True, text=True, timeout=15
+        )
+        output = result.stdout.strip()
+        if result.stderr.strip():
+            output += '\n' + result.stderr.strip()
+        if result.returncode != 0:
+            return jsonify({'error': output or 'Switch failed'}), 500
+        print(f"[SYSTEM] Switched to branch: {branch}")
+        return jsonify({'status': 'success', 'message': f'Switched to {branch}'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/system/reboot', methods=['POST'])
+def system_reboot():
+    """Reboot the system. Sends response first, then reboots after delay."""
+    import platform
+    system = platform.system()
+    print(f"[SYSTEM] Reboot requested on {system}")
+
+    def do_reboot():
+        time.sleep(2)
+        try:
+            if system == 'Linux':
+                # Try systemctl first, fall back to reboot command
+                result = subprocess.run(['sudo', 'systemctl', 'reboot'],
+                                       capture_output=True, text=True)
+                if result.returncode != 0:
+                    subprocess.run(['sudo', 'reboot'],
+                                  capture_output=True, text=True)
+            elif system == 'Windows':
+                subprocess.run(['shutdown', '/r', '/t', '5'],
+                              capture_output=True, text=True)
+        except Exception as e:
+            print(f"[SYSTEM] Reboot failed: {e}")
+
+    reboot_thread = threading.Thread(target=do_reboot, daemon=True)
+    reboot_thread.start()
+    return jsonify({'status': 'success', 'message': f'Rebooting {system}...'})
 
 
 @app.route('/api/presenter/scan', methods=['POST'])
