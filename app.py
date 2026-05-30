@@ -2166,21 +2166,50 @@ def switch_branch():
 
 @app.route('/api/system/reboot', methods=['POST'])
 def system_reboot():
-    """Reboot the system. Sends response first, then reboots after delay."""
+    """Reboot the system. Tests permission first, then reboots after delay."""
     import platform
     system = platform.system()
     print(f"[SYSTEM] Reboot requested on {system}")
 
+    # Test reboot permission first (dry run)
+    try:
+        if system == 'Linux':
+            # Check if sudo reboot is allowed without password
+            test = subprocess.run(['sudo', '-n', 'true'],
+                                 capture_output=True, text=True, timeout=5)
+            if test.returncode != 0:
+                err = test.stderr.strip() or 'sudo requires a password'
+                print(f"[SYSTEM] Reboot permission denied: {err}")
+                return jsonify({
+                    'status': 'error',
+                    'message': f'Permission denied: {err}. Add "ALL=(ALL) NOPASSWD: ALL" to sudoers for this user.'
+                }), 403
+        elif system == 'Windows':
+            pass  # Windows shutdown doesn't need a permission test
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'Reboot not supported on {system}'
+            }), 400
+    except subprocess.TimeoutExpired:
+        return jsonify({'status': 'error', 'message': 'Permission check timed out'}), 500
+    except FileNotFoundError:
+        return jsonify({'status': 'error', 'message': 'sudo command not found'}), 500
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+    # Permission OK — schedule the actual reboot
     def do_reboot():
         time.sleep(2)
         try:
             if system == 'Linux':
-                # Try systemctl first, fall back to reboot command
                 result = subprocess.run(['sudo', 'systemctl', 'reboot'],
                                        capture_output=True, text=True)
                 if result.returncode != 0:
-                    subprocess.run(['sudo', 'reboot'],
-                                  capture_output=True, text=True)
+                    result2 = subprocess.run(['sudo', 'reboot'],
+                                           capture_output=True, text=True)
+                    if result2.returncode != 0:
+                        print(f"[SYSTEM] Reboot failed: {result2.stderr}")
             elif system == 'Windows':
                 subprocess.run(['shutdown', '/r', '/t', '5'],
                               capture_output=True, text=True)

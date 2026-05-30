@@ -1292,7 +1292,14 @@ async function loadGitInfo() {
                 list.appendChild(el);
             });
         }
-    } catch (e) { console.error('Error loading git info:', e); }
+    } catch (e) {
+        console.error('Error loading git info:', e);
+        const output = document.getElementById('systemOutput');
+        if (output) {
+            output.style.display = 'block';
+            output.textContent = 'Failed to load git info: ' + e.message + '\nIs git installed on this system?';
+        }
+    }
 }
 
 async function rollbackTo(commitHash, short) {
@@ -1365,18 +1372,27 @@ async function systemReboot() {
     if (!confirm('Reboot the system? The timer will be offline for about 30 seconds.')) return;
     const output = document.getElementById('systemOutput');
     output.style.display = 'block';
-    output.textContent = 'Rebooting...\nThe page will reconnect automatically.';
-    showAlert('Rebooting...', 'info');
+    output.textContent = 'Requesting reboot...\n';
     try {
-        await fetch('/api/system/reboot', { method: 'POST' });
-    } catch (e) {}
-    setTimeout(function poll() {
-        fetch('/api/timer_status').then(() => {
-            output.textContent += '\nBack online!';
-            showAlert('System rebooted', 'success');
-            location.reload();
-        }).catch(() => setTimeout(poll, 3000));
-    }, 10000);
+        const res = await fetch('/api/system/reboot', { method: 'POST' });
+        const data = await res.json();
+        if (!res.ok || data.status === 'error') {
+            output.textContent += 'ERROR: ' + (data.message || 'Reboot failed');
+            showAlert(data.message || 'Reboot failed', 'error');
+            return;
+        }
+        output.textContent = 'Rebooting...\nThe page will reconnect automatically.';
+        showAlert('Rebooting...', 'info');
+        setTimeout(function poll() {
+            fetch('/api/timer_status').then(() => {
+                output.textContent += '\nBack online!';
+                showAlert('System rebooted', 'success');
+                location.reload();
+            }).catch(() => setTimeout(poll, 3000));
+        }, 10000);
+    } catch (e) {
+        output.textContent += 'Network error — server may already be rebooting.';
+    }
 }
 
 document.addEventListener('DOMContentLoaded', loadGitInfo);
