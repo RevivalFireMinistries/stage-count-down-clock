@@ -2090,27 +2090,83 @@ def git_info():
         return jsonify({'error': str(e)}), 500
 
 
+def _git_run(args, app_dir, timeout=30):
+    """Run a git command, return (success, output)."""
+    result = subprocess.run(
+        args, cwd=app_dir, capture_output=True, text=True, timeout=timeout
+    )
+    output = result.stdout.strip()
+    if result.stderr.strip():
+        output += '\n' + result.stderr.strip()
+    return result.returncode == 0, output
+
+
 @app.route('/api/system/update', methods=['POST'])
 def system_update():
-    """Run git pull to update the app."""
+    """Robust git pull: handles detached HEAD, local changes, and merge conflicts."""
     app_dir = _git_app_dir()
+    log = []
+
     try:
-        result = subprocess.run(
-            ['git', 'pull'],
-            cwd=app_dir, capture_output=True, text=True, timeout=30
-        )
-        output = result.stdout.strip()
-        if result.stderr.strip():
-            output += '\n' + result.stderr.strip()
-        print(f"[SYSTEM] git pull: {output}")
-        return jsonify({
-            'status': 'success' if result.returncode == 0 else 'error',
-            'output': output
-        })
+        # 1. Check current state
+        ok, head = _git_run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], app_dir)
+        log.append(f'$ git branch > {head}')
+
+        # 2. Fix detached HEAD (from rollback)
+        if head == 'HEAD':
+            log.append('Detached HEAD detected - finding correct branch...')
+            ok, branches = _git_run(['git', 'branch', '--contains', 'HEAD'], app_dir)
+            target = 'v2'
+            for b in branches.splitlines():
+                b = b.strip().lstrip('* ')
+                if b and b != '(HEAD' and 'detached' not in b:
+                    target = b
+                    break
+            ok, out = _git_run(['git', 'checkout', target], app_dir)
+            log.append(f'$ git checkout {target} > {out}')
+            if not ok:
+                return jsonify({'status': 'error', 'output': '\n'.join(log)})
+
+        # 3. Stash any local changes
+        ok, status = _git_run(['git', 'status', '--porcelain'], app_dir)
+        has_changes = bool(status.strip())
+        if has_changes:
+            log.append('Local changes detected - stashing...')
+            ok, out = _git_run(['git', 'stash', '--include-untracked'], app_dir)
+            log.append(f'$ git stash > {out}')
+
+        # 4. Fetch latest
+        ok, out = _git_run(['git', 'fetch', '--all'], app_dir)
+        log.append(f'$ git fetch > {out or "ok"}')
+
+        # 5. Pull (try fast-forward first, then hard reset)
+        ok, out = _git_run(['git', 'pull', '--ff-only'], app_dir)
+        if not ok:
+            log.append(f'Fast-forward failed: {out}')
+            log.append('Resetting to remote...')
+            ok2, branch = _git_run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'], app_dir)
+            ok, out = _git_run(['git', 'reset', '--hard', f'origin/{branch.strip()}'], app_dir)
+            log.append(f'$ git reset --hard origin/{branch.strip()} > {out}')
+        else:
+            log.append(f'$ git pull > {out}')
+
+        # 6. Restore stashed changes (best-effort)
+        if has_changes:
+            ok_pop, out_pop = _git_run(['git', 'stash', 'pop'], app_dir)
+            if ok_pop:
+                log.append('$ git stash pop > restored local changes')
+            else:
+                log.append(f'$ git stash pop > conflict (stash kept): {out_pop}')
+
+        print(f"[SYSTEM] Update complete")
+        return jsonify({'status': 'success', 'output': '\n'.join(log)})
+
     except subprocess.TimeoutExpired:
-        return jsonify({'status': 'error', 'output': 'Timed out after 30s'}), 500
+        log.append('ERROR: Timed out')
+        return jsonify({'status': 'error', 'output': '\n'.join(log)}), 500
     except Exception as e:
-        return jsonify({'status': 'error', 'output': str(e)}), 500
+        log.append(f'ERROR: {e}')
+        return jsonify({'status': 'error', 'output': '\n'.join(log)}), 500
 
 
 @app.route('/api/system/rollback', methods=['POST'])

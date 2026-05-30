@@ -998,6 +998,7 @@
         let presenterFontScale = 1.0;
         let presenterDisplayTimeout = 120;
         let presenterDismissTimer = null;
+        let presenterLastText = '';
         let previousScene = 'idleScene';
         let lastKnownActivity = '';
         const presenterText = document.getElementById('presenterText');
@@ -1148,6 +1149,9 @@
         }
 
         function showPresenterContent(msg) {
+            const contentKey = (msg.text || '') + '|' + (msg.subtext || '');
+            const isNewContent = contentKey !== presenterLastText;
+
             // Remember current scene so we can return to it
             if (!presenterActive) {
                 const activeScene = document.querySelector('.scene.active');
@@ -1156,36 +1160,41 @@
                 }
             }
 
-            // Apply text
-            let textHtml = (msg.text || '').replace(/\n/g, '<br>');
-            presenterText.innerHTML = textHtml;
-            presenterSubtext.textContent = msg.subtext || '';
+            // Apply text only if content changed (avoid flicker on duplicate messages)
+            if (isNewContent) {
+                presenterLastText = contentKey;
+                let textHtml = (msg.text || '').replace(/\n/g, '<br>');
+                presenterText.innerHTML = textHtml;
+                presenterSubtext.textContent = msg.subtext || '';
 
-            // Apply style — use local scale only, ignore remote styling
-            const scale = presenterFontScale || 1.0;
-            presenterText.style.fontSize = `calc(clamp(2rem, 5vw, 5rem) * ${scale})`;
-            presenterText.style.fontFamily = '';
-            presenterText.style.fontWeight = '';
-            presenterText.style.color = '';
-            presenterText.style.textAlign = '';
-            presenterText.style.lineHeight = '';
-            presenterSubtext.style.fontSize = `calc(clamp(1rem, 2.5vw, 2.5rem) * ${scale})`;
-            presenterSubtext.style.fontFamily = '';
-            presenterSubtext.style.color = '';
+                const scale = presenterFontScale || 1.0;
+                presenterText.style.fontSize = `calc(clamp(2rem, 5vw, 5rem) * ${scale})`;
+                presenterText.style.fontFamily = '';
+                presenterText.style.fontWeight = '';
+                presenterText.style.color = '';
+                presenterText.style.textAlign = '';
+                presenterText.style.lineHeight = '';
+                presenterSubtext.style.fontSize = `calc(clamp(1rem, 2.5vw, 2.5rem) * ${scale})`;
+                presenterSubtext.style.fontFamily = '';
+                presenterSubtext.style.color = '';
+
+                // Fit text to screen
+                requestAnimationFrame(() => requestAnimationFrame(() => fitPresenterText(scale)));
+            }
 
             // Show presenter scene
             showScene('presenterScene');
             presenterActive = true;
 
-            // Auto-dismiss
-            if (presenterDismissTimer) clearTimeout(presenterDismissTimer);
-            presenterDismissTimer = setTimeout(() => {
-                console.log('[Presenter] Auto-dismiss after ' + presenterDisplayTimeout + 's');
-                hidePresenter();
-            }, presenterDisplayTimeout * 1000);
-
-            // Fit text to screen
-            requestAnimationFrame(() => requestAnimationFrame(() => fitPresenterText(scale)));
+            // Only reset dismiss timer on NEW content, not duplicate slides
+            if (isNewContent) {
+                if (presenterDismissTimer) clearTimeout(presenterDismissTimer);
+                presenterDismissTimer = setTimeout(() => {
+                    console.log('[Presenter] Auto-dismiss after ' + presenterDisplayTimeout + 's');
+                    hidePresenter();
+                }, presenterDisplayTimeout * 1000);
+                console.log('[Presenter] New content, timer set for ' + presenterDisplayTimeout + 's');
+            }
         }
 
         function fitPresenterText(scale) {
@@ -1229,6 +1238,7 @@
         function hidePresenter() {
             if (!presenterActive) return;
             presenterActive = false;
+            presenterLastText = '';
             document.getElementById('miniTimer').classList.remove('show');
             if (presenterDismissTimer) { clearTimeout(presenterDismissTimer); presenterDismissTimer = null; }
             showScene(previousScene || 'idleScene');
