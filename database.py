@@ -101,9 +101,22 @@ def run_migrations(conn):
             c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_enabled BOOLEAN DEFAULT FALSE")
             c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_host TEXT DEFAULT ''")
             c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_port INTEGER DEFAULT 4777")
-            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_filters TEXT DEFAULT 'scripture,song'")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_filters TEXT DEFAULT 'scripture'")
             c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_font_scale REAL DEFAULT 1.0")
             migrations_run.append("presenter_settings")
+
+        # Migration 7: Add display_timeout to kiosk_settings
+        if 'presenter_display_timeout' not in kiosk_columns:
+            print("Running migration: Adding presenter display_timeout to kiosk_settings...")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN presenter_display_timeout INTEGER DEFAULT 120")
+            migrations_run.append("presenter_display_timeout")
+
+        # Migration 8: Add timer_size and clock_size to kiosk_settings
+        if 'timer_size' not in kiosk_columns:
+            print("Running migration: Adding size settings to kiosk_settings...")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN timer_size REAL DEFAULT 1.0")
+            c.execute("ALTER TABLE kiosk_settings ADD COLUMN clock_size REAL DEFAULT 1.0")
+            migrations_run.append("size_settings")
 
         if migrations_run:
             print(f"Migrations completed: {', '.join(migrations_run)}")

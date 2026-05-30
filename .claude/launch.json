@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "flask-app",
+      "runtimeExecutable": "python3.13.exe",
+      "runtimeArgs": ["app.py"],
+      "port": 80,
+      "url": "http://localhost:80/admin"
+    }
+  ]
+}

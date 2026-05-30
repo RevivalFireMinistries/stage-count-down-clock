@@ -7,6 +7,9 @@ import threading
 import time
 import urllib.request
 import json
+import socket
+import subprocess
+import concurrent.futures
 
 # Create the Flask app FIRST
 app = Flask(__name__, static_folder='static', static_url_path='/static')
@@ -49,6 +52,7 @@ current_timer = {
     'time_remaining': '00:00',
     'is_running': False,
     'is_paused': False,
+    'is_overtime': False,
     'total_duration': 0,
     'end_time': None,
     'waiting_for_start': False,
@@ -221,16 +225,19 @@ def populate_queue_from_db():
 
 kiosk_theme = 'flip'
 kiosk_font = 'inter'
+kiosk_timer_size = 1.0
+kiosk_clock_size = 1.0
 
 
 def load_kiosk_settings():
     """Load persisted theme/font/presenter settings from database"""
-    global kiosk_theme, kiosk_font, presenter_config
+    global kiosk_theme, kiosk_font, kiosk_timer_size, kiosk_clock_size, presenter_config
     try:
         with get_db() as conn:
             c = conn.cursor()
             c.execute('''SELECT theme, font, presenter_enabled, presenter_host,
-                                presenter_port, presenter_filters, presenter_font_scale
+                                presenter_port, presenter_filters, presenter_font_scale,
+                                timer_size, clock_size, presenter_display_timeout
                          FROM kiosk_settings WHERE id = 1''')
             row = c.fetchone()
             if row:
@@ -240,8 +247,13 @@ def load_kiosk_settings():
                     presenter_config['enabled'] = bool(row[2])
                     presenter_config['host'] = row[3] or ''
                     presenter_config['port'] = row[4] or 4777
-                    presenter_config['filters'] = (row[5] or 'scripture,song').split(',')
+                    presenter_config['filters'] = (row[5] or 'scripture').split(',')
                     presenter_config['font_scale'] = row[6] or 1.0
+                if len(row) > 7:
+                    kiosk_timer_size = row[7] if row[7] is not None else 1.0
+                    kiosk_clock_size = row[8] if row[8] is not None else 1.0
+                if len(row) > 9 and row[9] is not None:
+                    presenter_config['display_timeout'] = row[9]
                 print(f"[SETTINGS] Loaded theme={kiosk_theme}, font={kiosk_font}, presenter={presenter_config['enabled']}, host={presenter_config['host']}")
     except Exception as e:
         print(f"[SETTINGS] Could not load settings: {e}")
@@ -250,20 +262,24 @@ def load_kiosk_settings():
 def save_kiosk_settings():
     """Persist current theme/font/presenter settings to database"""
     try:
-        filters_str = ','.join(presenter_config.get('filters', ['scripture', 'song']))
+        filters_str = ','.join(presenter_config.get('filters', ['scripture']))
         with get_db() as conn:
             conn.execute('''UPDATE kiosk_settings
                             SET theme = ?, font = ?,
                                 presenter_enabled = ?, presenter_host = ?,
                                 presenter_port = ?, presenter_filters = ?,
-                                presenter_font_scale = ?
+                                presenter_font_scale = ?,
+                                timer_size = ?, clock_size = ?,
+                                presenter_display_timeout = ?
                             WHERE id = 1''',
                          (kiosk_theme, kiosk_font,
                           presenter_config.get('enabled', False),
                           presenter_config.get('host', ''),
                           presenter_config.get('port', 4777),
                           filters_str,
-                          presenter_config.get('font_scale', 1.0)))
+                          presenter_config.get('font_scale', 1.0),
+                          kiosk_timer_size, kiosk_clock_size,
+                          presenter_config.get('display_timeout', 120)))
             conn.commit()
     except Exception as e:
         print(f"[SETTINGS] Could not save settings: {e}")
@@ -334,7 +350,7 @@ def get_current_state():
         c = conn.cursor()
         c.execute('''
             SELECT cs.is_running, cs.is_paused, cs.start_time,
-                   a.name, ps.duration_minutes, ps.id
+                   a.name, ps.duration_minutes, ps.id, cs.manual_override
             FROM current_state cs
             LEFT JOIN program_schedules ps ON cs.current_schedule_id = ps.id
             LEFT JOIN activities a ON ps.activity_id = a.id
@@ -374,20 +390,11 @@ def update_timer_display():
 
                 state = get_current_state()
                 if state and state[0] and not state[1]:  # Running and not paused
-                    if not state[2] or not state[4]:
-                        # Missing start_time or duration — stale state, reset
-                        with get_db() as conn:
-                            conn.execute('UPDATE current_state SET is_running = FALSE WHERE id = 1')
-                            conn.commit()
-                        current_timer['is_running'] = False
-                        current_timer['current_activity'] = ''
-                        current_timer['time_remaining'] = '00:00'
-                        time.sleep(1)
-                        continue
                     start_time = datetime.fromisoformat(state[2])
                     duration = state[4] * 60
                     end_time = start_time + timedelta(seconds=duration)
                     now = datetime.now()
+                    manual_mode = bool(state[6]) if len(state) > 6 else False
 
                     if now < end_time:
                         remaining = end_time - now
@@ -399,8 +406,25 @@ def update_timer_display():
                         current_timer['current_activity'] = state[3]
                         current_timer['is_running'] = True
                         current_timer['is_paused'] = False
+                        current_timer['is_overtime'] = False
+                    elif manual_mode:
+                        overtime = now - end_time
+                        total_seconds = int(overtime.total_seconds())
+                        hours = total_seconds // 3600
+                        minutes = (total_seconds % 3600) // 60
+                        seconds = total_seconds % 60
+                        current_timer['time_remaining'] = f"+{hours:02d}:{minutes:02d}:{seconds:02d}"
+                        current_timer['current_activity'] = state[3]
+                        current_timer['is_running'] = True
+                        current_timer['is_paused'] = False
+                        current_timer['is_overtime'] = True
                     else:
                         move_to_next_item()
+                elif state and state[0] and state[1]:
+                    current_timer['is_running'] = True
+                    current_timer['is_paused'] = True
+                    if state[3]:
+                        current_timer['current_activity'] = state[3]
                 elif current_timer['is_running']:
                     # DB says not running but in-memory still thinks so — reset
                     current_timer['is_running'] = False
@@ -436,41 +460,20 @@ def process_queue():
         state = c.fetchone()
 
     if scheduled_start <= current_time:
-        # Check if program is still within its time frame
-        still_valid = True
-        try:
-            with get_db() as conn:
-                c = conn.cursor()
-                c.execute('''SELECT COALESCE(SUM(ps.duration_minutes), 0)
-                             FROM program_schedules ps WHERE ps.program_id = ?''', (program_id,))
-                total_duration = c.fetchone()[0] or 5
-            sh, sm = map(int, scheduled_start.split(':'))
-            program_start = now.replace(hour=sh, minute=sm, second=0)
-            program_end = program_start + timedelta(minutes=total_duration)
-            if now > program_end:
-                # Program's entire window has passed — skip it
-                queue_pop_next()
-                print(f"[QUEUE] Skipped expired program: {program_name} (ended at {program_end.strftime('%H:%M')})")
-                still_valid = False
-        except Exception:
-            pass
-
-        if still_valid:
-            if scheduled_start == current_time:
-                queue_pop_next()
-                try:
-                    start_program_smart_internal(program_id)
-                    print(f"[QUEUE] Started program: {program_name}")
-                except Exception as e:
-                    print(f"[QUEUE] Error starting {program_name}: {e}")
-            elif not state or (not state[0] and not state[1]):
-                # Late but still within time frame — smart start
-                queue_pop_next()
-                try:
-                    start_program_smart_internal(program_id)
-                    print(f"[QUEUE] Smart-started late program: {program_name}")
-                except Exception as e:
-                    print(f"[QUEUE] Error smart-starting {program_name}: {e}")
+        if scheduled_start == current_time:
+            queue_pop_next()
+            try:
+                start_program_smart_internal(program_id)
+                print(f"[QUEUE] Started program: {program_name}")
+            except Exception as e:
+                print(f"[QUEUE] Error starting {program_name}: {e}")
+        elif not state or (not state[0] and not state[1]):
+            queue_pop_next()
+            try:
+                start_program_smart_internal(program_id)
+                print(f"[QUEUE] Late-started program: {program_name}")
+            except Exception as e:
+                print(f"[QUEUE] Error late-starting {program_name}: {e}")
     else:
         if not state or not state[0]:
             update_waiting_from_queue()
@@ -682,7 +685,6 @@ def sync_programs_from_remote():
             cleanup_old_records()
             sync_programs_once()
             populate_queue_from_db()
-            process_queue()
         except Exception as e:
             print(f"[REMOTE SYNC] Thread error: {e}")
         time.sleep(sync_interval_minutes * 60)
@@ -740,11 +742,11 @@ def move_to_next_item():
     with get_db() as conn:
         c = conn.cursor()
 
-        c.execute('SELECT current_program_id, current_schedule_id FROM current_state WHERE id = 1')
+        c.execute('SELECT current_program_id, current_schedule_id, manual_override FROM current_state WHERE id = 1')
         result = c.fetchone()
 
         if result and result[0]:
-            program_id, current_schedule_id = result
+            program_id, current_schedule_id, manual_override = result
 
             schedule = get_current_schedule()
 
@@ -768,31 +770,36 @@ def move_to_next_item():
                 conn.commit()
                 current_timer['is_running'] = False
                 current_timer['is_paused'] = False
+                current_timer['is_overtime'] = False
                 current_timer['current_activity'] = ''
                 current_timer['time_remaining'] = '00:00'
                 current_timer['total_duration'] = 0
                 current_timer['end_time'] = None
                 print(f"[TIMER] Program ended, returned to idle")
 
-                # Auto-advance: try to start next queued program
-                next_prog = queue_peek_next()
-                if next_prog:
-                    now = datetime.now()
-                    try:
-                        sh, sm = map(int, next_prog['scheduled_start_time'].split(':'))
-                        scheduled = now.replace(hour=sh, minute=sm, second=0)
-                    except ValueError:
-                        scheduled = None
-
-                    if scheduled and now >= scheduled:
-                        queue_pop_next()
+                # Auto-advance: try to start next queued program (skip if manual mode was on)
+                if manual_override:
+                    print(f"[TIMER] Manual mode was active, skipping auto-advance")
+                    update_waiting_from_queue()
+                else:
+                    next_prog = queue_peek_next()
+                    if next_prog:
+                        now = datetime.now()
                         try:
-                            start_program_smart_internal(next_prog['program_id'])
-                            print(f"[QUEUE] Auto-advanced to: {next_prog['program_name']}")
-                        except Exception as e:
-                            print(f"[QUEUE] Error auto-advancing: {e}")
-                    else:
-                        update_waiting_from_queue()
+                            sh, sm = map(int, next_prog['scheduled_start_time'].split(':'))
+                            scheduled = now.replace(hour=sh, minute=sm, second=0)
+                        except ValueError:
+                            scheduled = None
+
+                        if scheduled and now >= scheduled:
+                            queue_pop_next()
+                            try:
+                                start_program_smart_internal(next_prog['program_id'])
+                                print(f"[QUEUE] Auto-advanced to: {next_prog['program_name']}")
+                            except Exception as e:
+                                print(f"[QUEUE] Error auto-advancing: {e}")
+                        else:
+                            update_waiting_from_queue()
 
 
 def get_current_schedule():
@@ -1025,6 +1032,7 @@ def stop_timer():
     current_timer.update({
         'is_running': False,
         'is_paused': False,
+        'is_overtime': False,
         'time_remaining': '00:00',
         'current_activity': '',
     })
@@ -1036,6 +1044,131 @@ def stop_timer():
 def next_item():
     move_to_next_item()
     return jsonify({'status': 'success'})
+
+
+@app.route('/api/manual_mode', methods=['POST'])
+def toggle_manual_mode():
+    """Toggle manual mode (overtime tracking) with optional resync."""
+    data = request.json
+    enabled = data.get('enabled', False)
+    resync = data.get('resync', False)
+
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute('UPDATE current_state SET manual_override = ? WHERE id = 1', (enabled,))
+        conn.commit()
+
+        if not enabled and resync:
+            # Resync: recalculate current activity based on scheduled time
+            c.execute('SELECT current_program_id FROM current_state WHERE id = 1')
+            result = c.fetchone()
+            if result and result[0]:
+                program_id = result[0]
+                current_schedule_id = calculate_current_activity(program_id)
+                if current_schedule_id:
+                    c.execute('SELECT duration_minutes FROM program_schedules WHERE id = ?', (current_schedule_id,))
+                    duration_result = c.fetchone()
+
+                    c.execute('SELECT scheduled_start_time FROM programs WHERE id = ?', (program_id,))
+                    prog = c.fetchone()
+                    if prog and prog[0]:
+                        now = datetime.now()
+                        try:
+                            sh, sm = map(int, prog[0].split(':'))
+                            scheduled_start = now.replace(hour=sh, minute=sm, second=0, microsecond=0)
+                        except ValueError:
+                            scheduled_start = now
+
+                        activity_start_time = scheduled_start
+                        c.execute('''
+                            SELECT ps.id, ps.duration_minutes
+                            FROM program_schedules ps
+                            WHERE ps.program_id = ?
+                            ORDER BY ps.sort_order
+                        ''', (program_id,))
+                        for sid, dur in c.fetchall():
+                            if sid == current_schedule_id:
+                                break
+                            activity_start_time += timedelta(minutes=dur)
+
+                        c.execute('''
+                            UPDATE current_state
+                            SET current_schedule_id = ?, start_time = ?, is_paused = FALSE
+                            WHERE id = 1
+                        ''', (current_schedule_id, activity_start_time.isoformat()))
+                        conn.commit()
+                        current_timer['is_overtime'] = False
+                        print(f"[MANUAL MODE] Resynced to activity {current_schedule_id}")
+
+    action = 'enabled' if enabled else 'disabled'
+    print(f"[MANUAL MODE] Manual mode {action}")
+    return jsonify({'status': 'success', 'manual_mode': enabled})
+
+
+@app.route('/api/prev_item', methods=['POST'])
+def prev_item():
+    """Navigate to the previous activity in the schedule."""
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute('SELECT current_program_id, current_schedule_id FROM current_state WHERE id = 1')
+        result = c.fetchone()
+
+        if not result or not result[0]:
+            return jsonify({'error': 'No program running'}), 400
+
+        program_id, current_schedule_id = result
+        schedule = get_current_schedule()
+
+        current_index = None
+        for i, item in enumerate(schedule):
+            if item['id'] == current_schedule_id:
+                current_index = i
+                break
+
+        if current_index is None or current_index <= 0:
+            return jsonify({'error': 'Already at first activity'}), 400
+
+        prev = schedule[current_index - 1]
+        c.execute('''
+            UPDATE current_state
+            SET current_schedule_id = ?, start_time = ?, is_paused = FALSE
+            WHERE id = 1
+        ''', (prev['id'], datetime.now().isoformat()))
+        conn.commit()
+
+    current_timer['is_overtime'] = False
+    return jsonify({'status': 'success'})
+
+
+@app.route('/api/update_duration', methods=['POST'])
+def update_duration():
+    """Update the duration of an activity on the fly."""
+    data = request.json
+    schedule_id = data.get('schedule_id')
+    new_duration = data.get('duration_minutes')
+
+    if not schedule_id or new_duration is None:
+        return jsonify({'error': 'schedule_id and duration_minutes are required'}), 400
+
+    new_duration = max(1, min(480, int(new_duration)))
+
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute('UPDATE program_schedules SET duration_minutes = ? WHERE id = ?',
+                  (new_duration, schedule_id))
+        if c.rowcount == 0:
+            return jsonify({'error': 'Schedule item not found'}), 404
+        conn.commit()
+
+    # Update live schedule override if active
+    if live_schedule_override:
+        for item in live_schedule_override:
+            if item['id'] == schedule_id:
+                item['duration_minutes'] = new_duration
+                break
+
+    print(f"[DURATION] Updated schedule {schedule_id} to {new_duration} minutes")
+    return jsonify({'status': 'success', 'duration_minutes': new_duration})
 
 
 @app.route('/api/clear_manual_override', methods=['POST'])
@@ -1115,21 +1248,22 @@ def get_live_schedule():
     with get_db() as conn:
         c = conn.cursor()
         c.execute('''
-            SELECT current_program_id, current_schedule_id, is_running
+            SELECT current_program_id, current_schedule_id, is_running, manual_override
             FROM current_state WHERE id = 1
         ''')
         state = c.fetchone()
 
     if not state or not state[0]:
-        return jsonify({'schedule': [], 'current_schedule_id': None, 'is_running': False})
+        return jsonify({'schedule': [], 'current_schedule_id': None, 'is_running': False, 'manual_mode': False})
 
-    program_id, current_schedule_id, is_running = state
+    program_id, current_schedule_id, is_running, manual_override = state
     schedule = get_current_schedule()
 
     return jsonify({
         'schedule': schedule,
         'current_schedule_id': current_schedule_id,
-        'is_running': is_running
+        'is_running': is_running,
+        'manual_mode': bool(manual_override)
     })
 
 
@@ -1711,6 +1845,7 @@ def reset_screen():
         'time_remaining': '00:00',
         'is_running': False,
         'is_paused': False,
+        'is_overtime': False,
         'total_duration': 0,
         'end_time': None,
         'waiting_for_start': False,
@@ -1735,15 +1870,18 @@ def reset_screen():
 
 @app.route('/api/kiosk_theme', methods=['GET'])
 def get_kiosk_theme():
-    return jsonify({'theme': kiosk_theme, 'font': kiosk_font})
+    return jsonify({'theme': kiosk_theme, 'font': kiosk_font,
+                    'timer_size': kiosk_timer_size, 'clock_size': kiosk_clock_size})
 
 
 @app.route('/api/kiosk_theme', methods=['POST'])
 def set_kiosk_theme():
-    global kiosk_theme, kiosk_font
+    global kiosk_theme, kiosk_font, kiosk_timer_size, kiosk_clock_size
     data = request.json
     theme = data.get('theme')
     font = data.get('font')
+    timer_size = data.get('timer_size')
+    clock_size = data.get('clock_size')
     if theme:
         if theme not in ('flip', 'minimal', 'neon', 'warm', 'sacred'):
             return jsonify({'error': 'Invalid theme'}), 400
@@ -1754,8 +1892,13 @@ def set_kiosk_theme():
             return jsonify({'error': 'Invalid font'}), 400
         kiosk_font = font
         print(f"[FONT] Kiosk font changed to: {font}")
+    if timer_size is not None:
+        kiosk_timer_size = max(0.5, min(2.0, float(timer_size)))
+    if clock_size is not None:
+        kiosk_clock_size = max(0.5, min(2.0, float(clock_size)))
     save_kiosk_settings()
-    return jsonify({'status': 'success', 'theme': kiosk_theme, 'font': kiosk_font})
+    return jsonify({'status': 'success', 'theme': kiosk_theme, 'font': kiosk_font,
+                    'timer_size': kiosk_timer_size, 'clock_size': kiosk_clock_size})
 
 
 # ─── Presenter integration (Revival Fire Presenter WebSocket) ─────────
@@ -1764,8 +1907,9 @@ presenter_config = {
     'enabled': False,
     'host': '',
     'port': 4777,
-    'filters': ['scripture', 'song'],
+    'filters': ['scripture'],
     'font_scale': 1.0,
+    'display_timeout': 120,
 }
 
 @app.route('/api/presenter', methods=['GET'])
@@ -1780,10 +1924,11 @@ def set_presenter():
     presenter_config['enabled'] = bool(data.get('enabled', False))
     presenter_config['host'] = data.get('host', '').strip()
     presenter_config['port'] = int(data.get('port', 4777))
-    presenter_config['filters'] = data.get('filters', ['scripture', 'song'])
+    presenter_config['filters'] = data.get('filters', ['scripture'])
     presenter_config['font_scale'] = max(0.5, min(3.0, float(data.get('font_scale', 1.0))))
+    presenter_config['display_timeout'] = max(10, min(600, int(data.get('display_timeout', 120))))
     save_kiosk_settings()
-    print(f"[PRESENTER] Config updated: enabled={presenter_config['enabled']}, host={presenter_config['host']}, filters={presenter_config['filters']}, font_scale={presenter_config['font_scale']}")
+    print(f"[PRESENTER] Config updated: enabled={presenter_config['enabled']}, host={presenter_config['host']}, filters={presenter_config['filters']}, font_scale={presenter_config['font_scale']}, display_timeout={presenter_config['display_timeout']}")
     return jsonify({'status': 'success', **presenter_config})
 
 
@@ -1828,7 +1973,6 @@ def sync_now():
         cleanup_old_remote_programs()
         sync_programs_once()
         populate_queue_from_db()
-        process_queue()
         print("[SYNC] Manual sync completed")
         return jsonify({'status': 'success', 'message': 'Sync completed'})
     except Exception as e:
@@ -1859,7 +2003,143 @@ def timer_status():
     response_data['queue'] = all_queue
     response_data['kiosk_theme'] = kiosk_theme
     response_data['kiosk_font'] = kiosk_font
+    response_data['is_overtime'] = current_timer.get('is_overtime', False)
+    response_data['timer_size'] = kiosk_timer_size
+    response_data['clock_size'] = kiosk_clock_size
+
+    # Query manual_mode from DB
+    try:
+        with get_db() as conn:
+            c = conn.cursor()
+            c.execute('SELECT manual_override FROM current_state WHERE id = 1')
+            row = c.fetchone()
+            response_data['manual_mode'] = bool(row[0]) if row else False
+    except Exception:
+        response_data['manual_mode'] = False
+
     return jsonify(response_data)
+
+
+# ─── System / Git endpoints ──────────────────────────────────────────
+
+def _git_app_dir():
+    """Return the directory containing this app (for git operations)."""
+    import os
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+@app.route('/api/system/git_info', methods=['GET'])
+def git_info():
+    """Return current branch, recent commits, and available branches."""
+    try:
+        app_dir = _git_app_dir()
+
+        branch = subprocess.check_output(
+            ['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+            cwd=app_dir, stderr=subprocess.DEVNULL
+        ).decode().strip()
+
+        log_output = subprocess.check_output(
+            ['git', 'log', '--oneline', '-10'],
+            cwd=app_dir, stderr=subprocess.DEVNULL
+        ).decode().strip()
+        commits = []
+        for line in log_output.splitlines():
+            parts = line.split(' ', 1)
+            if len(parts) == 2:
+                commits.append({'hash': parts[0], 'message': parts[1]})
+
+        branches_output = subprocess.check_output(
+            ['git', 'branch', '-a'],
+            cwd=app_dir, stderr=subprocess.DEVNULL
+        ).decode().strip()
+        branches = [b.strip().lstrip('* ') for b in branches_output.splitlines()]
+
+        return jsonify({
+            'branch': branch,
+            'commits': commits,
+            'branches': branches
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/system/rollback', methods=['POST'])
+def rollback():
+    """Rollback to a specific commit."""
+    data = request.json
+    commit_hash = data.get('commit')
+    if not commit_hash:
+        return jsonify({'error': 'commit hash is required'}), 400
+
+    try:
+        app_dir = _git_app_dir()
+        subprocess.check_output(
+            ['git', 'checkout', commit_hash, '--', '.'],
+            cwd=app_dir, stderr=subprocess.STDOUT
+        ).decode().strip()
+        return jsonify({'status': 'success', 'message': f'Rolled back to {commit_hash}'})
+    except subprocess.CalledProcessError as e:
+        return jsonify({'error': e.output.decode()}), 500
+
+
+@app.route('/api/system/switch_branch', methods=['POST'])
+def switch_branch():
+    """Switch to a different git branch."""
+    data = request.json
+    branch = data.get('branch')
+    if not branch:
+        return jsonify({'error': 'branch name is required'}), 400
+
+    try:
+        app_dir = _git_app_dir()
+        subprocess.check_output(
+            ['git', 'checkout', branch],
+            cwd=app_dir, stderr=subprocess.STDOUT
+        ).decode().strip()
+        return jsonify({'status': 'success', 'message': f'Switched to branch {branch}'})
+    except subprocess.CalledProcessError as e:
+        return jsonify({'error': e.output.decode()}), 500
+
+
+@app.route('/api/presenter/scan', methods=['POST'])
+def scan_for_presenter():
+    """Scan the local network for Fire Presenter instances."""
+    port = request.json.get('port', 4777) if request.json else 4777
+    timeout = 0.3
+    found = []
+
+    # Get local IP to determine subnet
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+    except Exception:
+        local_ip = '192.168.1.1'
+
+    subnet = '.'.join(local_ip.split('.')[:3])
+
+    def check_host(ip):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(timeout)
+            result = sock.connect_ex((ip, int(port)))
+            sock.close()
+            if result == 0:
+                return ip
+        except Exception:
+            pass
+        return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        futures = {executor.submit(check_host, f"{subnet}.{i}"): i for i in range(1, 255)}
+        for future in concurrent.futures.as_completed(futures):
+            result = future.result()
+            if result:
+                found.append(result)
+
+    return jsonify({'status': 'success', 'hosts': found, 'subnet': subnet, 'port': port})
 
 
 # ─── Boot sequence ────────────────────────────────────────────────────

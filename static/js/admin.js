@@ -4,8 +4,9 @@
 let currentProgram = null;
 let programs = [];
 let activities = [];
-let timerState = { is_running: false, is_paused: false };
+let timerState = { is_running: false, is_paused: false, manual_mode: false };
 let liveScheduleSortable = null;
+let editingDuration = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadPrograms();
@@ -551,6 +552,91 @@ async function nextItem() {
     } catch (e) { showAlert('Error', 'error'); }
 }
 
+async function prevItem() {
+    try {
+        const res = await fetch('/api/prev_item', { method: 'POST' });
+        if (res.ok) showAlert('Previous item');
+        else {
+            const data = await res.json();
+            showAlert(data.error || 'Already at first item', 'error');
+        }
+    } catch (e) { showAlert('Error', 'error'); }
+}
+
+async function toggleManualMode(enabled) {
+    if (!enabled) {
+        document.getElementById('manualModeToggle').checked = true;
+        showResyncDialog();
+        return;
+    }
+    await applyManualMode(true, false);
+}
+
+function showResyncDialog() {
+    document.getElementById('resyncModal').style.display = 'block';
+}
+
+function closeResyncDialog() {
+    document.getElementById('resyncModal').style.display = 'none';
+    document.getElementById('manualModeToggle').checked = true;
+}
+
+async function resyncChoice(resync) {
+    document.getElementById('resyncModal').style.display = 'none';
+    await applyManualMode(false, resync);
+}
+
+async function applyManualMode(enabled, resync) {
+    try {
+        const res = await fetch('/api/manual_mode', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ enabled, resync })
+        });
+        if (res.ok) {
+            timerState.manual_mode = enabled;
+            updateManualModeUI(enabled);
+            if (enabled) {
+                showAlert('Manual control ON');
+            } else {
+                showAlert(resync ? 'Synced to clock' : 'Auto mode — continuing from here');
+            }
+        }
+    } catch (e) { showAlert('Error toggling mode', 'error'); }
+}
+
+function updateManualModeUI(enabled) {
+    const bar = document.getElementById('manualModeBar');
+    const badge = document.getElementById('manualBadge');
+    const desc = document.getElementById('manualModeDesc');
+    const card = document.getElementById('statusCard');
+    const prevBtn = document.getElementById('prevBtn');
+
+    bar.classList.toggle('active', enabled);
+    badge.style.display = enabled ? 'flex' : 'none';
+    desc.textContent = enabled ? 'You have full control' : 'Auto-advance is on';
+
+    if (enabled) {
+        card.classList.add('manual-active');
+        prevBtn.classList.add('manual-nav');
+        document.getElementById('nextBtn').classList.add('manual-nav');
+    } else {
+        card.classList.remove('manual-active');
+        prevBtn.classList.remove('manual-nav');
+        document.getElementById('nextBtn').classList.remove('manual-nav');
+    }
+}
+
+async function updateDuration(scheduleId, newDuration) {
+    try {
+        const res = await fetch('/api/update_duration', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ schedule_id: scheduleId, duration_minutes: newDuration })
+        });
+        if (res.ok) showAlert(`Duration → ${newDuration}m`);
+        else showAlert('Error updating duration', 'error');
+    } catch (e) { showAlert('Error updating duration', 'error'); }
+}
+
 function updateTimerControls(running, paused) {
     timerState.is_running = running;
     timerState.is_paused = paused;
@@ -560,6 +646,7 @@ function updateTimerControls(running, paused) {
     document.getElementById('resumeBtn').disabled = !running || !paused;
     document.getElementById('stopBtn').disabled = !running;
     document.getElementById('nextBtn').disabled = !running;
+    document.getElementById('prevBtn').disabled = !running || !timerState.manual_mode;
 }
 
 // ── LIVE SCHEDULE ──
@@ -572,17 +659,38 @@ async function updateLiveSchedule() {
         list.innerHTML = '';
         if (data.schedule.length === 0) return;
 
-        data.schedule.forEach(item => {
+        const manualMode = data.manual_mode || false;
+        const helpText = document.getElementById('liveScheduleHelp');
+        if (helpText) {
+            helpText.textContent = manualMode
+                ? 'Tap duration to edit · Drag to reorder'
+                : 'Drag to reorder activities';
+        }
+
+        data.schedule.forEach((item, idx) => {
             const el = document.createElement('div');
             el.className = 'live-schedule-item';
             el.setAttribute('data-id', item.id);
-            if (item.id === data.current_schedule_id && data.is_running) el.classList.add('current-activity');
+
+            const isCurrent = item.id === data.current_schedule_id && data.is_running;
+            if (isCurrent) el.classList.add('current-activity');
+
+            // Mark past activities
+            const currentIdx = data.schedule.findIndex(s => s.id === data.current_schedule_id);
+            if (currentIdx >= 0 && idx < currentIdx && data.is_running) {
+                el.classList.add('past-activity');
+            }
+
+            const durationContent = manualMode
+                ? `<span class="editable-duration" onclick="startDurationEdit(this, ${item.id}, ${item.duration_minutes})">${item.duration_minutes}m</span>`
+                : `${item.duration_minutes}m`;
+
             el.innerHTML = `
                 <div class="live-schedule-item-info">
                     <span class="drag-handle"><i class="fas fa-grip-vertical"></i></span>
                     <strong>${item.activity_name}</strong>
                 </div>
-                <div class="live-schedule-item-duration">${item.duration_minutes}m</div>`;
+                <div class="live-schedule-item-duration">${durationContent}</div>`;
             list.appendChild(el);
         });
 
@@ -595,6 +703,24 @@ async function updateLiveSchedule() {
             }
         });
     } catch (e) { console.error('Error updating live schedule:', e); }
+}
+
+function startDurationEdit(span, scheduleId, currentVal) {
+    editingDuration = scheduleId;
+    const parent = span.parentElement;
+    parent.innerHTML = `<input type="number" class="duration-edit-input" value="${currentVal}" min="1" max="999"
+        onblur="finishDurationEdit(this, ${scheduleId})"
+        onkeydown="if(event.key==='Enter') this.blur();"
+        style="width:3.5rem; text-align:center; font-size:0.85rem; padding:0.15rem 0.25rem; border-radius:4px; border:1px solid var(--accent); background:var(--surface); color:var(--text);">`;
+    parent.querySelector('input').focus();
+}
+
+async function finishDurationEdit(input, scheduleId) {
+    const val = parseInt(input.value);
+    editingDuration = null;
+    if (val && val > 0) {
+        await updateDuration(scheduleId, val);
+    }
 }
 
 async function reorderLiveSchedule(order) {
@@ -631,12 +757,39 @@ async function updateTimerStatus() {
         document.getElementById('currentActivity').textContent = s.current_activity || '-';
         document.getElementById('timeRemaining').textContent = s.time_remaining;
 
+        // Overtime display
+        const overtimeLabel = document.getElementById('overtimeLabel');
+        const statusCard = document.getElementById('statusCard');
+        if (overtimeLabel) {
+            overtimeLabel.style.display = s.is_overtime ? 'inline' : 'none';
+        }
+        if (statusCard) {
+            if (s.is_overtime) statusCard.classList.add('overtime');
+            else statusCard.classList.remove('overtime');
+        }
+
+        // Manual mode
+        timerState.manual_mode = s.manual_mode || false;
         updateTimerControls(s.is_running, s.is_paused);
 
-        // Live schedule
+        const manualBar = document.getElementById('manualModeBar');
+        if (manualBar) {
+            manualBar.style.display = s.is_running ? '' : 'none';
+        }
+        const manualToggle = document.getElementById('manualModeToggle');
+        if (manualToggle) {
+            manualToggle.checked = s.manual_mode || false;
+        }
+        updateManualModeUI(s.manual_mode || false);
+
+        // Live schedule (skip update if editing a duration)
         const liveCard = document.getElementById('liveScheduleCard');
-        if (s.is_running) { liveCard.style.display = 'block'; updateLiveSchedule(); }
-        else { liveCard.style.display = 'none'; }
+        if (s.is_running) {
+            liveCard.style.display = 'block';
+            if (!editingDuration) updateLiveSchedule();
+        } else {
+            liveCard.style.display = 'none';
+        }
 
         // Queue
         const qCard = document.getElementById('queueCard');
@@ -844,7 +997,31 @@ async function setFont(font) {
     } catch (e) { showAlert('Error setting font', 'error'); }
 }
 
-// Load current theme + font on startup
+// ── DISPLAY SIZE ──
+
+let sizeDebounce = null;
+
+function previewSize(which) {
+    const timerVal = parseFloat(document.getElementById('timerSizeSlider').value);
+    const clockVal = parseFloat(document.getElementById('clockSizeSlider').value);
+    document.getElementById('timerSizeDisplay').textContent = timerVal.toFixed(1) + '×';
+    document.getElementById('clockSizeDisplay').textContent = clockVal.toFixed(1) + '×';
+    if (sizeDebounce) clearTimeout(sizeDebounce);
+    sizeDebounce = setTimeout(() => saveSize(), 300);
+}
+
+async function saveSize() {
+    const timerSize = parseFloat(document.getElementById('timerSizeSlider').value);
+    const clockSize = parseFloat(document.getElementById('clockSizeSlider').value);
+    try {
+        await fetch('/api/kiosk_theme', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ timer_size: timerSize, clock_size: clockSize })
+        });
+    } catch (e) { console.error('Error saving sizes:', e); }
+}
+
+// Load current theme + font + sizes on startup
 fetch('/api/kiosk_theme').then(r=>r.json()).then(d => {
     document.querySelectorAll('.theme-option').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.theme === d.theme);
@@ -852,6 +1029,17 @@ fetch('/api/kiosk_theme').then(r=>r.json()).then(d => {
     document.querySelectorAll('.font-option').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.font === d.font);
     });
+    // Load sizes
+    const timerSlider = document.getElementById('timerSizeSlider');
+    const clockSlider = document.getElementById('clockSizeSlider');
+    if (timerSlider && d.timer_size != null) {
+        timerSlider.value = d.timer_size;
+        document.getElementById('timerSizeDisplay').textContent = parseFloat(d.timer_size).toFixed(1) + '×';
+    }
+    if (clockSlider && d.clock_size != null) {
+        clockSlider.value = d.clock_size;
+        document.getElementById('clockSizeDisplay').textContent = parseFloat(d.clock_size).toFixed(1) + '×';
+    }
 }).catch(()=>{});
 
 function showCountdownStatus(msg, type) {
@@ -883,15 +1071,55 @@ function loadPresenterSettings() {
             const saved = JSON.parse(localStorage.getItem('presenterSettings') || '{}');
             presenterSettings = { ...presenterSettings, ...saved, host: data.host || saved.host, port: data.port || saved.port };
         } catch {}
-        presenterSettings.font_scale = data.font_scale || saved.font_scale || 1.0;
+        presenterSettings.font_scale = data.font_scale || presenterSettings.font_scale || 1.0;
+        presenterSettings.display_timeout = data.display_timeout || presenterSettings.display_timeout || 5;
         document.getElementById('presenterEnabled').checked = presenterSettings.enabled;
         document.getElementById('filterScripture').checked = presenterSettings.filters.includes('scripture');
         document.getElementById('filterSong').checked = presenterSettings.filters.includes('song');
         document.getElementById('filterCustom').checked = presenterSettings.filters.includes('custom');
         document.getElementById('presenterFontScale').value = presenterSettings.font_scale;
         document.getElementById('fontScaleValue').textContent = presenterSettings.font_scale + 'x';
+        const timeoutEl = document.getElementById('presenterDisplayTimeout');
+        if (timeoutEl) timeoutEl.value = presenterSettings.display_timeout;
         updatePresenterUI();
     }).catch(() => {});
+}
+
+async function scanForPresenter() {
+    const statusEl = document.getElementById('scanStatus');
+    const resultsEl = document.getElementById('scanResults');
+    statusEl.textContent = 'Scanning network...';
+    statusEl.style.display = 'block';
+    resultsEl.innerHTML = '';
+    try {
+        const res = await fetch('/api/presenter/scan', { method: 'POST' });
+        const data = await res.json();
+        statusEl.style.display = 'none';
+        if (data.found && data.found.length > 0) {
+            data.found.forEach(ip => {
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-primary btn-sm';
+                btn.style.margin = '0.25rem';
+                btn.textContent = ip;
+                btn.onclick = () => selectPresenterHost(ip);
+                resultsEl.appendChild(btn);
+            });
+        } else {
+            statusEl.textContent = 'No Presenter instances found on network';
+            statusEl.style.display = 'block';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+        }
+    } catch (e) {
+        statusEl.textContent = 'Scan failed';
+        statusEl.style.display = 'block';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+    }
+}
+
+function selectPresenterHost(ip) {
+    document.getElementById('presenterHost').value = ip;
+    document.getElementById('scanResults').innerHTML = '';
+    showAlert(`Host set to ${ip}`);
 }
 
 function togglePresenter() {
@@ -909,6 +1137,8 @@ function savePresenterSettings() {
     if (document.getElementById('filterSong').checked) presenterSettings.filters.push('song');
     if (document.getElementById('filterCustom').checked) presenterSettings.filters.push('custom');
     presenterSettings.font_scale = parseFloat(document.getElementById('presenterFontScale').value) || 1.0;
+    const timeoutEl = document.getElementById('presenterDisplayTimeout');
+    presenterSettings.display_timeout = timeoutEl ? parseInt(timeoutEl.value) || 5 : 5;
     savePresenterSettingsLocal();
     pushPresenterConfig();
     showAlert('Presenter settings saved', 'success');
@@ -1010,3 +1240,97 @@ async function syncNow() {
 }
 
 document.addEventListener('DOMContentLoaded', loadSyncSettings);
+
+// ═══════════════════════════════════════════════════════════════════
+// System Management (Git)
+// ═══════════════════════════════════════════════════════════════════
+
+async function loadGitInfo() {
+    try {
+        const res = await fetch('/api/system/git');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        const branchEl = document.getElementById('gitBranch');
+        const commitEl = document.getElementById('gitCommit');
+        const dateEl = document.getElementById('gitDate');
+        const branchSelect = document.getElementById('branchSelect');
+
+        if (branchEl) branchEl.textContent = data.branch || '-';
+        if (commitEl) commitEl.textContent = data.commit_short ? `${data.commit_short} — ${data.commit_message}` : '-';
+        if (dateEl) dateEl.textContent = data.commit_date || '-';
+
+        if (branchSelect && data.branches) {
+            branchSelect.innerHTML = '';
+            data.branches.forEach(b => {
+                const opt = document.createElement('option');
+                opt.value = b;
+                opt.textContent = b;
+                if (b === data.branch) opt.selected = true;
+                branchSelect.appendChild(opt);
+            });
+        }
+    } catch (e) { console.error('Error loading git info:', e); }
+}
+
+async function rollbackTo(commitHash) {
+    if (!confirm('Rollback to this commit? The app will restart.')) return;
+    try {
+        const res = await fetch('/api/system/rollback', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ commit: commitHash })
+        });
+        const data = await res.json();
+        if (res.ok) showAlert('Rolling back... app will restart');
+        else showAlert(data.error || 'Rollback failed', 'error');
+    } catch (e) { showAlert('Rollback failed', 'error'); }
+}
+
+async function switchBranch() {
+    const branch = document.getElementById('branchSelect').value;
+    if (!branch) return;
+    if (!confirm(`Switch to branch "${branch}"? The app will restart.`)) return;
+    try {
+        const res = await fetch('/api/system/switch_branch', {
+            method: 'POST', headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ branch })
+        });
+        const data = await res.json();
+        if (res.ok) showAlert(`Switching to ${branch}... app will restart`);
+        else showAlert(data.error || 'Switch failed', 'error');
+    } catch (e) { showAlert('Branch switch failed', 'error'); }
+}
+
+async function systemUpdate() {
+    if (!confirm('Pull latest updates and restart the app?')) return;
+    const statusEl = document.getElementById('updateStatus');
+    if (statusEl) {
+        statusEl.textContent = 'Updating...';
+        statusEl.style.color = 'var(--accent)';
+    }
+    try {
+        const res = await fetch('/api/system/update', { method: 'POST' });
+        const data = await res.json();
+        if (res.ok) {
+            if (statusEl) { statusEl.textContent = 'Update complete — restarting...'; statusEl.style.color = '#22c55e'; }
+            showAlert('Update pulled — app will restart');
+        } else {
+            if (statusEl) { statusEl.textContent = data.error || 'Update failed'; statusEl.style.color = '#ef4444'; }
+            showAlert(data.error || 'Update failed', 'error');
+        }
+    } catch (e) {
+        if (statusEl) { statusEl.textContent = 'Update failed: network error'; statusEl.style.color = '#ef4444'; }
+        showAlert('Update failed', 'error');
+    }
+}
+
+async function systemReboot() {
+    if (!confirm('Reboot the system? This will restart the Raspberry Pi.')) return;
+    try {
+        const res = await fetch('/api/system/reboot', { method: 'POST' });
+        if (res.ok) showAlert('Rebooting...');
+        else showAlert('Reboot failed', 'error');
+    } catch (e) { showAlert('Reboot failed', 'error'); }
+}
+
+document.addEventListener('DOMContentLoaded', loadGitInfo);

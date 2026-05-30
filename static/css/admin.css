@@ -1069,7 +1069,7 @@ small.help-text {
     }
 
     .controls-grid {
-        grid-template-columns: repeat(6, 1fr);
+        grid-template-columns: repeat(7, 1fr);
     }
 
     .modal-content {
@@ -1226,4 +1226,356 @@ small.help-text {
 .presenter-settings.disabled {
     opacity: 0.4;
     pointer-events: none;
+}
+
+/* ── MANUAL MODE ── */
+
+.manual-mode-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 1rem;
+    margin-bottom: 0.75rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    transition: all 0.25s ease;
+}
+
+.manual-mode-bar.active {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+.manual-mode-info {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+}
+
+.manual-mode-info > i {
+    font-size: 1rem;
+    color: var(--text-muted);
+    transition: color 0.25s;
+}
+
+.manual-mode-bar.active .manual-mode-info > i {
+    color: var(--orange);
+}
+
+.manual-mode-title {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+}
+
+.manual-mode-desc {
+    display: block;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 0.05rem;
+}
+
+.manual-mode-bar.active .manual-mode-desc {
+    color: var(--orange);
+}
+
+.manual-mode-bar .switch input:checked + .slider {
+    background: var(--orange);
+}
+
+.manual-mode-badge {
+    margin-left: auto;
+    padding: 0.2rem 0.55rem;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--orange);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    animation: manualPulse 2.5s ease-in-out infinite;
+}
+
+.manual-mode-badge i {
+    font-size: 0.55rem;
+}
+
+@keyframes manualPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+/* Overtime display */
+.overtime-label {
+    font-size: 0.65rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-top: 0.35rem;
+    animation: manualPulse 1.5s ease-in-out infinite;
+}
+
+.status-card.overtime .time-value {
+    color: var(--orange) !important;
+}
+
+.status-card.manual-active {
+    border-color: rgba(245, 158, 11, 0.25);
+}
+
+/* Editable duration in live schedule */
+.live-schedule-item-duration.editable {
+    cursor: pointer;
+    border: 1px dashed rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.1);
+    color: var(--orange);
+}
+
+.live-schedule-item-duration.editable:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: var(--orange);
+}
+
+.duration-edit-input {
+    width: 48px;
+    padding: 0.2rem 0.35rem;
+    border: 1px solid var(--orange);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--orange);
+    font-size: 0.75rem;
+    font-weight: 700;
+    font-family: var(--font);
+    text-align: center;
+    outline: none;
+}
+
+.duration-edit-input:focus {
+    box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.25);
+}
+
+/* Past activity in manual mode */
+.live-schedule-item.past-activity {
+    opacity: 0.45;
+}
+
+.live-schedule-item.past-activity::before {
+    content: '\2713';
+    color: var(--text-muted);
+    margin-right: 0.5rem;
+    font-size: 0.7rem;
+}
+
+/* Nav buttons in manual mode */
+.ctrl-btn.blue.manual-nav {
+    color: var(--orange);
+    border-color: rgba(245, 158, 11, 0.35);
+}
+
+/* Resync dialog */
+.resync-modal-content {
+    max-width: 400px !important;
+}
+
+.resync-prompt {
+    padding: 1rem 1.25rem 0.5rem;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    font-weight: 500;
+}
+
+.resync-option {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    width: 100%;
+    padding: 1rem 1.25rem;
+    border: none;
+    background: none;
+    color: var(--text);
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: left;
+    font-family: var(--font);
+    border-top: 1px solid var(--border);
+}
+
+.resync-option:hover {
+    background: var(--surface-2);
+}
+
+.resync-option:active {
+    background: var(--surface-3);
+}
+
+.resync-option-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+
+.resync-option:first-of-type .resync-option-icon {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--orange);
+}
+
+.resync-option:last-of-type .resync-option-icon {
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--blue);
+}
+
+.resync-option-text {
+    flex: 1;
+    min-width: 0;
+}
+
+.resync-option-text strong {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.15rem;
+}
+
+.resync-option-text span {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    line-height: 1.35;
+}
+
+.resync-arrow {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+}
+
+/* ── System / Git management ── */
+
+.sys-version {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.6rem 0.85rem;
+}
+
+.sys-version-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.2rem 0;
+}
+
+.sys-version-row + .sys-version-row {
+    border-top: 1px solid var(--border);
+    margin-top: 0.2rem;
+    padding-top: 0.4rem;
+}
+
+.sys-version-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.sys-version-label i {
+    width: 14px;
+    text-align: center;
+}
+
+.sys-version-value {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.rollback-item {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.55rem 0.7rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.35rem;
+    transition: border-color 0.15s;
+}
+
+.rollback-item:first-child {
+    border-color: rgba(34, 197, 94, 0.3);
+    background: var(--green-dim);
+}
+
+.rollback-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.rollback-item-msg {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rollback-item-meta {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 0.1rem;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.rollback-item-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+}
+
+.rollback-item:first-child .rollback-item-badge {
+    background: var(--green-dim);
+    color: var(--green);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.rollback-item-btn {
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.08);
+    color: var(--orange);
+    font-size: 0.7rem;
+    font-weight: 600;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-shrink: 0;
+}
+
+.rollback-item-btn:hover {
+    background: rgba(245, 158, 11, 0.2);
+}
+
+.rollback-item-btn:active {
+    transform: scale(0.95);
 }

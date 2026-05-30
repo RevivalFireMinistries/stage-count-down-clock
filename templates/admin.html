@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#0f0f0f">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&family=Oswald:wght@700&family=Bebas+Neue&family=Orbitron:wght@800&family=Roboto+Mono:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <link href="/static/css/admin.css?v=9" rel="stylesheet">
+    <link href="/static/css/admin.css?v=14" rel="stylesheet">
 </head>
 <body>
     <!-- Header -->
@@ -67,16 +67,35 @@
             </div>
 
             <!-- Timer Status -->
-            <div class="status-card">
+            <div class="status-card" id="statusCard">
                 <div class="status-row">
                     <span class="status-dot stopped"></span>
                     <span id="statusText">STOPPED</span>
+                    <div class="manual-mode-badge" id="manualBadge" style="display:none;">
+                        <i class="fas fa-hand-paper"></i> MANUAL
+                    </div>
                 </div>
                 <div class="timer-display">
                     <div class="activity-label">Current Activity</div>
                     <div class="activity-name" id="currentActivity">-</div>
                     <div class="time-value" id="timeRemaining">00:00</div>
+                    <div class="overtime-label" id="overtimeLabel" style="display:none;">OVERTIME</div>
                 </div>
+            </div>
+
+            <!-- Manual Mode Toggle -->
+            <div class="manual-mode-bar" id="manualModeBar" style="display:none;">
+                <div class="manual-mode-info">
+                    <i class="fas fa-hand-paper"></i>
+                    <div>
+                        <span class="manual-mode-title">Manual Control</span>
+                        <span class="manual-mode-desc" id="manualModeDesc">Auto-advance is on</span>
+                    </div>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="manualModeToggle" onchange="toggleManualMode(this.checked)">
+                    <span class="slider round"></span>
+                </label>
             </div>
 
             <!-- Reset Screen -->
@@ -97,6 +116,9 @@
                 </button>
                 <button class="ctrl-btn blue" onclick="resumeTimer()" id="resumeBtn" disabled>
                     <i class="fas fa-play-circle"></i><span>Resume</span>
+                </button>
+                <button class="ctrl-btn blue" onclick="prevItem()" id="prevBtn" disabled>
+                    <i class="fas fa-backward"></i><span>Prev</span>
                 </button>
                 <button class="ctrl-btn blue" onclick="nextItem()" id="nextBtn" disabled>
                     <i class="fas fa-forward"></i><span>Next</span>
@@ -132,7 +154,7 @@
                     <i class="fas fa-chevron-down toggle"></i>
                 </div>
                 <div class="card-body">
-                    <p class="help-text"><i class="fas fa-info-circle"></i> Drag to reorder (temporary)</p>
+                    <p class="help-text" id="liveScheduleHelp"><i class="fas fa-info-circle"></i> Drag to reorder (temporary)</p>
                     <div id="liveScheduleList"></div>
                 </div>
             </div>
@@ -235,6 +257,29 @@
                 </div>
             </div>
 
+            <!-- Display Size -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-expand-alt"></i> Display Size</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body">
+                    <label class="inline-label">Timer Digits</label>
+                    <div class="range-row">
+                        <input type="range" id="timerSizeSlider" min="0.5" max="2.0" step="0.05" value="1.0" oninput="previewSize('timer')">
+                        <span class="range-value" id="timerSizeDisplay">1.0×</span>
+                    </div>
+                    <div class="range-labels"><span>Small</span><span>Large</span></div>
+
+                    <label class="inline-label" style="margin-top:1rem;">Bottom Clock</label>
+                    <div class="range-row">
+                        <input type="range" id="clockSizeSlider" min="0.5" max="2.0" step="0.05" value="1.0" oninput="previewSize('clock')">
+                        <span class="range-value" id="clockSizeDisplay">1.0×</span>
+                    </div>
+                    <div class="range-labels"><span>Small</span><span>Large</span></div>
+                </div>
+            </div>
+
             <!-- Presenter Integration -->
             <div class="card" id="presenterCard">
                 <div class="card-header" onclick="toggleCard(this)">
@@ -260,8 +305,14 @@
                     <div class="presenter-settings">
                         <div class="field-row">
                             <label>Presenter IP / Hostname</label>
-                            <input type="text" id="presenterHost" placeholder="e.g. 192.168.1.100"
-                                   style="width:100%; padding:0.6rem; background:var(--surface-lighter); border:1px solid var(--border); color:var(--text); border-radius:6px;">
+                            <div style="display:flex; gap:0.5rem;">
+                                <input type="text" id="presenterHost" placeholder="e.g. 192.168.1.100"
+                                       style="flex:1; padding:0.6rem; background:var(--surface-lighter); border:1px solid var(--border); color:var(--text); border-radius:6px;">
+                                <button class="btn btn-secondary btn-sm" onclick="scanForPresenter()" id="scanBtn">
+                                    <i class="fas fa-search"></i> Scan
+                                </button>
+                            </div>
+                            <div id="scanResult" style="margin-top:0.35rem; font-size:0.8rem; color:var(--text-dim);"></div>
                         </div>
                         <div class="field-row" style="margin-top:0.5rem;">
                             <label>Port</label>
@@ -276,7 +327,7 @@
                                 <input type="checkbox" id="filterScripture" checked> Scriptures
                             </label>
                             <label class="presenter-filter-option">
-                                <input type="checkbox" id="filterSong" checked> Song Lyrics
+                                <input type="checkbox" id="filterSong"> Song Lyrics
                             </label>
                             <label class="presenter-filter-option">
                                 <input type="checkbox" id="filterCustom"> Custom Text
@@ -293,6 +344,19 @@
                                    style="width:100%; accent-color:var(--accent);">
                             <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted);">
                                 <span>Small</span><span>Normal</span><span>Large</span>
+                            </div>
+                        </div>
+
+                        <!-- Auto-dismiss timeout -->
+                        <div style="margin-top:0.75rem;">
+                            <label style="color:var(--text-dim); font-size:0.85rem; display:block; margin-bottom:0.4rem;">
+                                Auto-dismiss after: <span id="displayTimeoutValue">2:00</span>
+                            </label>
+                            <input type="range" id="presenterTimeout" min="10" max="600" step="10" value="120"
+                                   oninput="document.getElementById('displayTimeoutValue').textContent = Math.floor(this.value/60) + ':' + String(this.value%60).padStart(2,'0')"
+                                   style="width:100%; accent-color:var(--accent);">
+                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted);">
+                                <span>10s</span><span>2min</span><span>10min</span>
                             </div>
                         </div>
 
@@ -392,6 +456,59 @@
                     <div id="countdownStatus" class="status-msg"></div>
                 </div>
             </div>
+
+            <!-- System -->
+            <div class="card">
+                <div class="card-header" onclick="toggleCard(this)">
+                    <h3><i class="fas fa-server"></i> System</h3>
+                    <i class="fas fa-chevron-down toggle"></i>
+                </div>
+                <div class="card-body">
+                    <!-- Current version info -->
+                    <div class="sys-version" id="sysVersion">
+                        <div class="sys-version-row">
+                            <span class="sys-version-label"><i class="fas fa-code-branch"></i> Branch</span>
+                            <span class="sys-version-value" id="sysBranch">—</span>
+                        </div>
+                        <div class="sys-version-row">
+                            <span class="sys-version-label"><i class="fas fa-tag"></i> Version</span>
+                            <span class="sys-version-value" id="sysCommit">—</span>
+                        </div>
+                    </div>
+
+                    <!-- Action buttons -->
+                    <div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem;">
+                        <button class="btn btn-primary" onclick="systemUpdate()" id="updateBtn" style="flex:1;">
+                            <i class="fas fa-download"></i> Update
+                        </button>
+                        <button class="btn btn-danger" onclick="systemReboot()" style="flex:1;">
+                            <i class="fas fa-redo"></i> Reboot
+                        </button>
+                    </div>
+
+                    <!-- Branch switcher -->
+                    <div style="margin-top:0.75rem;">
+                        <label style="color:var(--text-dim); font-size:0.8rem; display:block; margin-bottom:0.35rem;">Switch Branch</label>
+                        <div style="display:flex; gap:0.5rem;">
+                            <select id="branchSelect" style="flex:1; padding:0.5rem; background:var(--surface-2); border:1px solid var(--border); color:var(--text); border-radius:6px; font-family:var(--font); font-size:0.85rem;">
+                                <option>Loading...</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" onclick="switchBranch()">
+                                <i class="fas fa-exchange-alt"></i> Switch
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Rollback -->
+                    <div style="margin-top:0.75rem;">
+                        <label style="color:var(--text-dim); font-size:0.8rem; display:block; margin-bottom:0.35rem;">Rollback to Previous Version</label>
+                        <div id="rollbackList"></div>
+                    </div>
+
+                    <!-- Output console -->
+                    <div id="systemOutput" style="display:none; margin-top:0.75rem; padding:0.75rem; background:var(--surface-2); border:1px solid var(--border); border-radius:6px; font-size:0.75rem; font-family:'JetBrains Mono',monospace; color:var(--text-dim); white-space:pre-wrap; max-height:200px; overflow-y:auto;"></div>
+                </div>
+            </div>
         </div>
 
         <!-- ═══ PROGRAMS TAB ═══ -->
@@ -449,6 +566,35 @@
     </nav>
 
     <!-- ═══ MODALS ═══ -->
+
+    <!-- Resync Dialog -->
+    <div id="resyncModal" class="modal">
+        <div class="modal-content resync-modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-sync-alt" style="color:var(--orange);"></i> Switch to Auto</h3>
+                <button class="close-btn" onclick="closeResyncDialog()"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body" style="padding:0;">
+                <p class="resync-prompt">How should the timer continue?</p>
+                <button class="resync-option" onclick="resyncChoice(true)">
+                    <div class="resync-option-icon"><i class="fas fa-clock"></i></div>
+                    <div class="resync-option-text">
+                        <strong>Sync with the clock</strong>
+                        <span>Jump to where the program should be based on the scheduled start time</span>
+                    </div>
+                    <i class="fas fa-chevron-right resync-arrow"></i>
+                </button>
+                <button class="resync-option" onclick="resyncChoice(false)">
+                    <div class="resync-option-icon"><i class="fas fa-play-circle"></i></div>
+                    <div class="resync-option-text">
+                        <strong>Continue from here</strong>
+                        <span>Keep the current activity and remaining time, just re-enable auto-advance</span>
+                    </div>
+                    <i class="fas fa-chevron-right resync-arrow"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <!-- Program Selector -->
     <div id="programSelectorModal" class="modal">
@@ -658,7 +804,7 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
-    <script src="/static/js/admin.js?v=9"></script>
+    <script src="/static/js/admin.js?v=17"></script>
     <script>
         function switchTab(tabId, button) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
