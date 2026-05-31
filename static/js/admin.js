@@ -1114,15 +1114,15 @@ function loadPresenterSettings() {
             presenterSettings = { ...presenterSettings, ...saved, host: data.host || saved.host, port: data.port || saved.port };
         } catch {}
         presenterSettings.font_scale = data.font_scale || presenterSettings.font_scale || 1.0;
-        presenterSettings.display_timeout = data.display_timeout || presenterSettings.display_timeout || 5;
+        presenterSettings.display_timeout = data.display_timeout || presenterSettings.display_timeout || 120;
         document.getElementById('presenterEnabled').checked = presenterSettings.enabled;
         document.getElementById('filterScripture').checked = presenterSettings.filters.includes('scripture');
         document.getElementById('filterSong').checked = presenterSettings.filters.includes('song');
         document.getElementById('filterCustom').checked = presenterSettings.filters.includes('custom');
         document.getElementById('presenterFontScale').value = presenterSettings.font_scale;
         document.getElementById('fontScaleValue').textContent = presenterSettings.font_scale + 'x';
-        const timeoutEl = document.getElementById('presenterDisplayTimeout');
-        if (timeoutEl) timeoutEl.value = presenterSettings.display_timeout;
+        const timeoutEl = document.getElementById('presenterTimeout');
+        if (timeoutEl) timeoutEl.value = Math.round(presenterSettings.display_timeout / 60);
         updatePresenterUI();
     }).catch(() => {});
 }
@@ -1179,8 +1179,8 @@ function savePresenterSettings() {
     if (document.getElementById('filterSong').checked) presenterSettings.filters.push('song');
     if (document.getElementById('filterCustom').checked) presenterSettings.filters.push('custom');
     presenterSettings.font_scale = parseFloat(document.getElementById('presenterFontScale').value) || 1.0;
-    const timeoutEl = document.getElementById('presenterDisplayTimeout');
-    presenterSettings.display_timeout = timeoutEl ? parseInt(timeoutEl.value) || 5 : 5;
+    const timeoutMinutes = parseInt(document.getElementById('presenterTimeout').value) || 2;
+    presenterSettings.display_timeout = timeoutMinutes * 60;
     savePresenterSettingsLocal();
     pushPresenterConfig();
     showAlert('Presenter settings saved', 'success');

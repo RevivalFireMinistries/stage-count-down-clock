@@ -1103,7 +1103,8 @@
                 presenterStatus.textContent = '';
                 presenterStatus.className = 'presenter-status disconnected';
                 reportPresenterStatus('disconnected');
-                hidePresenter();
+                // Don't hide content — let the dismiss timer handle it.
+                // Content already on screen should stay until timeout expires.
                 schedulePresenterReconnect();
             };
 

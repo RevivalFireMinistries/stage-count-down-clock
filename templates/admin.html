@@ -7,7 +7,7 @@
     <meta name="theme-color" content="#0f0f0f">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@800;900&family=Oswald:wght@700&family=Bebas+Neue&family=Orbitron:wght@800&family=Roboto+Mono:wght@700&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
-    <link href="/static/css/admin.css?v=16" rel="stylesheet">
+    <link href="/static/css/admin.css?v=17" rel="stylesheet">
 </head>
 <body>
     <!-- Header -->
@@ -348,15 +348,12 @@
                         </div>
 
                         <!-- Auto-dismiss timeout -->
-                        <div style="margin-top:0.75rem;">
-                            <label style="color:var(--text-dim); font-size:0.85rem; display:block; margin-bottom:0.4rem;">
-                                Auto-dismiss after: <span id="displayTimeoutValue">2:00</span>
-                            </label>
-                            <input type="range" id="presenterTimeout" min="10" max="600" step="10" value="120"
-                                   oninput="document.getElementById('displayTimeoutValue').textContent = Math.floor(this.value/60) + ':' + String(this.value%60).padStart(2,'0')"
-                                   style="width:100%; accent-color:var(--accent);">
-                            <div style="display:flex; justify-content:space-between; font-size:0.7rem; color:var(--text-muted);">
-                                <span>10s</span><span>2min</span><span>10min</span>
+                        <div class="field-row" style="margin-top:0.75rem;">
+                            <label>Auto-dismiss content after</label>
+                            <div style="display:flex; align-items:center; gap:0.5rem;">
+                                <input type="number" id="presenterTimeout" min="1" max="10" value="2"
+                                       style="width:80px; padding:0.6rem; background:var(--surface-lighter); border:1px solid var(--border); color:var(--text); border-radius:6px;">
+                                <span style="color:var(--text-dim); font-size:0.85rem;">minutes</span>
                             </div>
                         </div>
 
@@ -807,7 +804,7 @@
 
     <!-- Scripts -->
     <script src="https://unpkg.com/sortablejs@1.14.0/Sortable.min.js"></script>
-    <script src="/static/js/admin.js?v=19"></script>
+    <script src="/static/js/admin.js?v=20"></script>
     <script>
         function switchTab(tabId, button) {
             document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
