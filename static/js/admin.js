@@ -55,10 +55,14 @@ function showAlert(message, type = 'success') {
 
 // ── PROGRAMS ──
 
+let runningProgramId = null;
+
 async function loadPrograms() {
     try {
         const res = await fetch('/api/programs');
-        programs = await res.json();
+        const data = await res.json();
+        programs = data.programs || data;
+        runningProgramId = data.running_program_id || null;
         displayPrograms();
         displayProgramSelector();
     } catch (e) {
@@ -75,11 +79,19 @@ function displayPrograms() {
     }
     programs.forEach(p => {
         const el = document.createElement('div');
-        el.className = `program-item ${currentProgram && currentProgram.id === p.id ? 'current-program' : ''}`;
-        const badge = p.auto_start ? '<span class="auto-start-badge">AUTO</span>' : '';
+        const isRunning = runningProgramId === p.id;
+        const isLoaded = currentProgram && currentProgram.id === p.id;
+        el.className = `program-item${isLoaded ? ' current-program' : ''}${isRunning ? ' running-program' : ''}`;
+
+        const badges = [];
+        if (isRunning) badges.push('<span class="program-badge running-badge"><i class="fas fa-play"></i> LIVE</span>');
+        if (p.source === 'remote') badges.push('<span class="program-badge remote-badge"><i class="fas fa-cloud-download-alt"></i> ONLINE</span>');
+        else badges.push('<span class="program-badge local-badge"><i class="fas fa-home"></i> LOCAL</span>');
+        if (p.auto_start) badges.push('<span class="program-badge auto-badge">AUTO</span>');
+
         el.innerHTML = `
             <div class="program-info">
-                <h4>${p.name} ${badge}</h4>
+                <h4>${p.name} ${badges.join(' ')}</h4>
                 <p>${p.day_of_week || 'No day'} &middot; ${p.scheduled_start_time || 'No time'} &middot; ${p.activity_count} activities</p>
             </div>
             <div class="item-actions">
@@ -96,11 +108,17 @@ function displayProgramSelector() {
     list.innerHTML = '';
     programs.forEach(p => {
         const el = document.createElement('div');
-        el.className = 'program-item';
-        const badge = p.auto_start ? '<span class="auto-start-badge">AUTO</span>' : '';
+        const isRunning = runningProgramId === p.id;
+        el.className = `program-item${isRunning ? ' running-program' : ''}`;
+
+        const sourceBadge = p.source === 'remote'
+            ? '<span class="program-badge remote-badge"><i class="fas fa-cloud-download-alt"></i> ONLINE</span>'
+            : '<span class="program-badge local-badge"><i class="fas fa-home"></i> LOCAL</span>';
+        const runBadge = isRunning ? '<span class="program-badge running-badge"><i class="fas fa-play"></i> LIVE</span>' : '';
+
         el.innerHTML = `
             <div class="program-info">
-                <h4>${p.name} ${badge}</h4>
+                <h4>${p.name} ${sourceBadge} ${runBadge}</h4>
                 <p>${p.day_of_week || ''} &middot; ${p.scheduled_start_time || ''} &middot; ${p.activity_count} activities</p>
             </div>
             <button class="btn btn-primary btn-sm" onclick="loadProgram(${p.id}); closeModal('programSelectorModal')">
@@ -771,6 +789,14 @@ async function updateTimerStatus() {
         // Manual mode
         timerState.manual_mode = s.manual_mode || false;
         updateTimerControls(s.is_running, s.is_paused);
+
+        // Update running program indicator
+        const newRunning = s.current_program_id || null;
+        if (newRunning !== runningProgramId) {
+            runningProgramId = newRunning;
+            displayPrograms();
+            displayProgramSelector();
+        }
 
         const manualBar = document.getElementById('manualModeBar');
         if (manualBar) {

@@ -421,6 +421,11 @@ body {
 }
 
 .program-item.current-program {
+    border-color: var(--accent);
+    background: var(--accent-glow);
+}
+
+.program-item.running-program {
     border-color: var(--green);
     background: var(--green-dim);
 }
@@ -455,6 +460,52 @@ body {
     font-size: 0.6rem;
     font-weight: 700;
     letter-spacing: 0.05em;
+}
+
+.program-badge {
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 0.55rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    vertical-align: middle;
+    white-space: nowrap;
+}
+
+.program-badge i { font-size: 0.5rem; }
+
+.remote-badge {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--blue);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.local-badge {
+    background: rgba(136, 136, 136, 0.1);
+    color: var(--text-dim);
+    border: 1px solid rgba(136, 136, 136, 0.2);
+}
+
+.running-badge {
+    background: rgba(34, 197, 94, 0.15);
+    color: var(--green);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    animation: glow 2s infinite;
+}
+
+.auto-badge {
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--orange);
+    border: 1px solid rgba(245, 158, 11, 0.25);
+}
+
+.program-info h4 {
+    flex-wrap: wrap;
+    gap: 0.35rem;
 }
 
 .item-actions {

@@ -1275,7 +1275,7 @@ def get_programs():
         c = conn.cursor()
         c.execute('''
             SELECT p.id, p.name, p.description, p.scheduled_start_time, p.day_of_week, p.auto_start,
-                   COUNT(ps.id) as activity_count
+                   COUNT(ps.id) as activity_count, p.source
             FROM programs p
             LEFT JOIN program_schedules ps ON p.id = ps.program_id
             GROUP BY p.id
@@ -1283,10 +1283,18 @@ def get_programs():
         ''')
         programs = [{'id': row[0], 'name': row[1], 'description': row[2],
                      'scheduled_start_time': row[3], 'day_of_week': row[4],
-                     'auto_start': bool(row[5]), 'activity_count': row[6]}
+                     'auto_start': bool(row[5]), 'activity_count': row[6],
+                     'source': row[7] or 'local'}
                     for row in c.fetchall()]
 
-    return jsonify(programs)
+    # Include which program is currently running
+    with get_db() as conn:
+        c = conn.cursor()
+        c.execute('SELECT current_program_id, is_running FROM current_state WHERE id = 1')
+        state = c.fetchone()
+        running_id = state[0] if state and state[1] else None
+
+    return jsonify({'programs': programs, 'running_program_id': running_id})
 
 
 @app.route('/api/programs/<int:program_id>')
@@ -2007,15 +2015,17 @@ def timer_status():
     response_data['timer_size'] = kiosk_timer_size
     response_data['clock_size'] = kiosk_clock_size
 
-    # Query manual_mode from DB
+    # Query manual_mode and current_program_id from DB
     try:
         with get_db() as conn:
             c = conn.cursor()
-            c.execute('SELECT manual_override FROM current_state WHERE id = 1')
+            c.execute('SELECT manual_override, current_program_id, is_running FROM current_state WHERE id = 1')
             row = c.fetchone()
             response_data['manual_mode'] = bool(row[0]) if row else False
+            response_data['current_program_id'] = row[1] if row and row[2] else None
     except Exception:
         response_data['manual_mode'] = False
+        response_data['current_program_id'] = None
 
     return jsonify(response_data)
 
