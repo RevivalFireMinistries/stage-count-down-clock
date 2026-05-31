@@ -567,9 +567,18 @@ def cleanup_old_records():
         print(f"[CLEANUP] Error purging old records: {e}")
 
 
+sync_status = {
+    'last_attempt': None,
+    'last_success': None,
+    'ok': True,
+    'error': None,
+}
+
+
 def sync_programs_once():
     """Run a single remote sync pass. Returns True if successful."""
-    global remote_program_hashes
+    global remote_program_hashes, sync_status
+    sync_status['last_attempt'] = datetime.now().strftime('%H:%M:%S')
     try:
         req = urllib.request.Request(REMOTE_PROGRAMS_URL, headers={'Accept': 'application/json'})
         with urllib.request.urlopen(req, timeout=15) as response:
@@ -663,9 +672,14 @@ def sync_programs_once():
             except Exception as e:
                 print(f"[REMOTE SYNC] DB error syncing {title}: {e}")
 
+        sync_status['last_success'] = datetime.now().strftime('%H:%M:%S')
+        sync_status['ok'] = True
+        sync_status['error'] = None
         return True
 
     except Exception as e:
+        sync_status['ok'] = False
+        sync_status['error'] = str(e)
         print(f"[REMOTE SYNC] Error fetching remote programs: {e}")
         return False
 
@@ -1979,10 +1993,17 @@ def sync_now():
     """Manually trigger a remote sync."""
     try:
         cleanup_old_remote_programs()
-        sync_programs_once()
+        success = sync_programs_once()
         populate_queue_from_db()
-        print("[SYNC] Manual sync completed")
-        return jsonify({'status': 'success', 'message': 'Sync completed'})
+        if success:
+            print("[SYNC] Manual sync completed")
+            return jsonify({'status': 'success', 'message': 'Sync completed', 'sync_status': sync_status})
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': f'Sync failed: {sync_status.get("error", "Unknown error")}',
+                'sync_status': sync_status
+            }), 502
     except Exception as e:
         print(f"[SYNC] Manual sync error: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -2014,6 +2035,7 @@ def timer_status():
     response_data['is_overtime'] = current_timer.get('is_overtime', False)
     response_data['timer_size'] = kiosk_timer_size
     response_data['clock_size'] = kiosk_clock_size
+    response_data['sync_status'] = sync_status
 
     # Query manual_mode and current_program_id from DB
     try:

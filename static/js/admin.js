@@ -853,6 +853,22 @@ async function updateTimerStatus() {
         } else {
             qCard.style.display = 'none';
         }
+
+        // Sync status
+        const syncBanner = document.getElementById('syncStatusBanner');
+        if (syncBanner && s.sync_status) {
+            const ss = s.sync_status;
+            if (ss.last_attempt) {
+                syncBanner.style.display = 'flex';
+                if (ss.ok) {
+                    syncBanner.className = 'sync-banner sync-ok';
+                    syncBanner.innerHTML = `<i class="fas fa-check-circle"></i> Last sync: ${ss.last_success || ss.last_attempt}`;
+                } else {
+                    syncBanner.className = 'sync-banner sync-fail';
+                    syncBanner.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Sync failed at ${ss.last_attempt}: ${ss.error || 'unreachable'}`;
+                }
+            }
+        }
     } catch (e) { console.error('Error updating status:', e); }
 }
 
@@ -1254,15 +1270,19 @@ async function syncNow() {
             status.textContent = 'Sync completed!';
             status.style.color = '#22c55e';
             showAlert('Remote sync completed', 'success');
+            loadPrograms();
         } else {
-            status.textContent = 'Sync failed: ' + (data.message || 'Unknown error');
+            const errMsg = data.message || 'Unknown error';
+            status.textContent = 'Sync failed: ' + errMsg;
             status.style.color = '#ef4444';
+            showAlert('Sync failed: ' + errMsg, 'error');
         }
     } catch (e) {
         status.textContent = 'Sync failed: network error';
         status.style.color = '#ef4444';
+        showAlert('Sync failed: could not reach server', 'error');
     }
-    setTimeout(() => { status.textContent = ''; }, 5000);
+    setTimeout(() => { status.textContent = ''; }, 8000);
 }
 
 document.addEventListener('DOMContentLoaded', loadSyncSettings);
